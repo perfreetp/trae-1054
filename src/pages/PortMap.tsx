@@ -15,6 +15,7 @@ import {
   Select,
   InputNumber,
   message,
+  Descriptions,
 } from 'antd'
 import {
   MapContainer,
@@ -32,6 +33,9 @@ import {
   WarningOutlined,
   AlertOutlined,
   PlusOutlined,
+  EyeOutlined,
+  EditOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons'
 import { dangerZones as initialZones, persons, vehicles } from '../mock/data'
 import type { DangerZone } from '../types'
@@ -59,7 +63,12 @@ const PortMap = () => {
   const [showPersons, setShowPersons] = useState(true)
   const [showVehicles, setShowVehicles] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
+  const [detailModalOpen, setDetailModalOpen] = useState(false)
+  const [editModalOpen, setEditModalOpen] = useState(false)
+  const [selectedZone, setSelectedZone] = useState<DangerZone | null>(null)
+  const [zoneTypeFilter, setZoneTypeFilter] = useState<'all' | 'danger' | 'warning'>('all')
   const [form] = Form.useForm()
+  const [editForm] = Form.useForm()
   const center: [number, number] = [31.2304, 121.4737]
 
   const getStatusColor = (status: string) => {
@@ -92,6 +101,59 @@ const PortMap = () => {
       message.success('区域已添加')
       setModalOpen(false)
       form.resetFields()
+    })
+  }
+
+  const filteredZones = zones.filter((zone) => {
+    if (zoneTypeFilter === 'all') return true
+    return zone.type === zoneTypeFilter
+  })
+
+  const handleViewDetail = (zone: DangerZone) => {
+    setSelectedZone(zone)
+    setDetailModalOpen(true)
+  }
+
+  const handleEdit = (zone: DangerZone) => {
+    setSelectedZone(zone)
+    editForm.setFieldsValue({
+      name: zone.name,
+      type: zone.type,
+      description: zone.description,
+      lat: zone.lat,
+      lng: zone.lng,
+      radius: zone.radius,
+    })
+    setEditModalOpen(true)
+  }
+
+  const handleEditSubmit = () => {
+    editForm.validateFields().then((values) => {
+      if (!selectedZone) return
+      setZones((prev) =>
+        prev.map((zone) =>
+          zone.id === selectedZone.id
+            ? { ...zone, ...values }
+            : zone
+        )
+      )
+      message.success('区域已更新')
+      setEditModalOpen(false)
+      setSelectedZone(null)
+    })
+  }
+
+  const handleDelete = (zone: DangerZone) => {
+    Modal.confirm({
+      title: '确认删除',
+      content: `确定要删除区域「${zone.name}」吗？删除后无法恢复。`,
+      okText: '确认删除',
+      cancelText: '取消',
+      okType: 'danger',
+      onOk: () => {
+        setZones((prev) => prev.filter((z) => z.id !== zone.id))
+        message.success('区域已删除')
+      },
     })
   }
 
@@ -259,7 +321,7 @@ const PortMap = () => {
           </MapContainer>
         </Card>
 
-        <div style={{ width: 320, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ width: 360, display: 'flex', flexDirection: 'column', gap: 16 }}>
           <Card
             title="危险区域列表"
             size="small"
@@ -276,10 +338,54 @@ const PortMap = () => {
               </Button>
             }
           >
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid #f0f0f0' }}>
+              <Select
+                value={zoneTypeFilter}
+                onChange={(value) => setZoneTypeFilter(value)}
+                style={{ width: '100%' }}
+                size="small"
+              >
+                <Option value="all">全部</Option>
+                <Option value="danger">危险区域</Option>
+                <Option value="warning">警示区域</Option>
+              </Select>
+            </div>
             <List
-              dataSource={zones}
+              dataSource={filteredZones}
               renderItem={(item) => (
-                <List.Item style={{ padding: '12px 16px' }}>
+                <List.Item
+                  style={{ padding: '12px 16px' }}
+                  actions={[
+                    <Button
+                      key="detail"
+                      type="link"
+                      size="small"
+                      icon={<EyeOutlined />}
+                      onClick={() => handleViewDetail(item)}
+                    >
+                      详情
+                    </Button>,
+                    <Button
+                      key="edit"
+                      type="link"
+                      size="small"
+                      icon={<EditOutlined />}
+                      onClick={() => handleEdit(item)}
+                    >
+                      编辑
+                    </Button>,
+                    <Button
+                      key="delete"
+                      type="link"
+                      size="small"
+                      danger
+                      icon={<DeleteOutlined />}
+                      onClick={() => handleDelete(item)}
+                    >
+                      删除
+                    </Button>,
+                  ]}
+                >
                   <List.Item.Meta
                     avatar={
                       <Tag color={item.type === 'danger' ? 'red' : 'orange'}>
@@ -389,6 +495,103 @@ const PortMap = () => {
             label="半径（米）"
             rules={[{ required: true, message: '请输入半径' }]}
             initialValue={80}
+          >
+            <InputNumber min={10} step={10} style={{ width: '100%' }} placeholder="例如：80" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="区域详情"
+        open={detailModalOpen}
+        onCancel={() => {
+          setDetailModalOpen(false)
+          setSelectedZone(null)
+        }}
+        footer={[
+          <Button key="close" onClick={() => {
+            setDetailModalOpen(false)
+            setSelectedZone(null)
+          }}>
+            关闭
+          </Button>
+        ]}
+        width={500}
+      >
+        {selectedZone && (
+          <Descriptions column={1} bordered size="small">
+            <Descriptions.Item label="区域名称">{selectedZone.name}</Descriptions.Item>
+            <Descriptions.Item label="类型">
+              <Tag color={selectedZone.type === 'danger' ? 'red' : 'orange'}>
+                {selectedZone.type === 'danger' ? '危险区域（高危）' : '警示区域'}
+              </Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="说明">{selectedZone.description || '无'}</Descriptions.Item>
+            <Descriptions.Item label="位置">
+              纬度: {selectedZone.lat}, 经度: {selectedZone.lng}
+            </Descriptions.Item>
+            <Descriptions.Item label="半径">{selectedZone.radius} 米</Descriptions.Item>
+          </Descriptions>
+        )}
+      </Modal>
+
+      <Modal
+        title="编辑区域"
+        open={editModalOpen}
+        onCancel={() => {
+          setEditModalOpen(false)
+          setSelectedZone(null)
+        }}
+        onOk={handleEditSubmit}
+        okText="保存"
+        cancelText="取消"
+        width={500}
+      >
+        <Form form={editForm} layout="vertical">
+          <Form.Item
+            name="name"
+            label="区域名称"
+            rules={[{ required: true, message: '请输入区域名称' }]}
+          >
+            <Input placeholder="例如：油罐区A" />
+          </Form.Item>
+          <Form.Item
+            name="type"
+            label="区域类型"
+            rules={[{ required: true, message: '请选择区域类型' }]}
+          >
+            <Select placeholder="选择类型">
+              <Option value="danger">危险区域（高危）</Option>
+              <Option value="warning">警示区域</Option>
+            </Select>
+          </Form.Item>
+          <Form.Item name="description" label="说明">
+            <TextArea rows={2} placeholder="区域说明或注意事项" />
+          </Form.Item>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="lat"
+                label="纬度"
+                rules={[{ required: true, message: '请输入纬度' }]}
+              >
+                <InputNumber step={0.0001} style={{ width: '100%' }} placeholder="例如：31.2304" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="lng"
+                label="经度"
+                rules={[{ required: true, message: '请输入经度' }]}
+              >
+                <InputNumber step={0.0001} style={{ width: '100%' }} placeholder="例如：121.4737" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item
+            name="radius"
+            label="半径（米）"
+            rules={[{ required: true, message: '请输入半径' }]}
           >
             <InputNumber min={10} step={10} style={{ width: '100%' }} placeholder="例如：80" />
           </Form.Item>

@@ -16,6 +16,7 @@ import {
   Checkbox,
   message,
   Descriptions,
+  Timeline,
 } from 'antd'
 import {
   SearchOutlined,
@@ -24,25 +25,33 @@ import {
   CloseOutlined,
   EyeOutlined,
   FileTextOutlined,
+  CheckCircleOutlined,
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
-import { workPermits as initialPermits } from '../mock/data'
-import type { WorkPermit } from '../types'
+import type { WorkPermit, ApprovalRecord } from '../types'
 import dayjs from 'dayjs'
 
 const { Option } = Select
 const { TextArea } = Input
 const { RangePicker } = DatePicker
 
-const WorkPermits = () => {
-  const [permits, setPermits] = useState<WorkPermit[]>([...initialPermits])
+interface WorkPermitsProps {
+  permits: WorkPermit[]
+  setPermits: React.Dispatch<React.SetStateAction<WorkPermit[]>>
+}
+
+const WorkPermits = ({ permits, setPermits }: WorkPermitsProps) => {
   const [selectedType, setSelectedType] = useState<string>('all')
   const [selectedStatus, setSelectedStatus] = useState<string>('all')
   const [searchText, setSearchText] = useState('')
   const [addVisible, setAddVisible] = useState(false)
   const [detailVisible, setDetailVisible] = useState(false)
   const [selectedPermit, setSelectedPermit] = useState<WorkPermit | null>(null)
+  const [approvalVisible, setApprovalVisible] = useState(false)
+  const [approvalType, setApprovalType] = useState<'approve' | 'reject' | 'complete'>('approve')
+  const [approvalPermitId, setApprovalPermitId] = useState<string>('')
   const [form] = Form.useForm()
+  const [approvalForm] = Form.useForm()
 
   const typeColorMap: Record<string, string> = {
     hot: 'red',
@@ -83,24 +92,75 @@ const WorkPermits = () => {
     return matchType && matchStatus && matchText
   })
 
+  const openApprovalModal = (id: string, type: 'approve' | 'reject' | 'complete') => {
+    setApprovalPermitId(id)
+    setApprovalType(type)
+    setApprovalVisible(true)
+    approvalForm.resetFields()
+  }
+
+  const handleApprovalSubmit = () => {
+    approvalForm.validateFields().then((values) => {
+      const newRecord: ApprovalRecord = {
+        time: dayjs().format('YYYY-MM-DD HH:mm'),
+        operator: '当前用户',
+        action: approvalType,
+        opinion: values.opinion || '',
+      }
+
+      let newStatus: WorkPermit['status'] = 'pending'
+      let successMessage = ''
+
+      if (approvalType === 'approve') {
+        newStatus = 'approved'
+        successMessage = '已批准作业许可'
+      } else if (approvalType === 'reject') {
+        newStatus = 'rejected'
+        successMessage = '已驳回作业许可'
+      } else if (approvalType === 'complete') {
+        newStatus = 'completed'
+        successMessage = '作业已完成'
+      }
+
+      setPermits((prev) =>
+        prev.map((p) =>
+          p.id === approvalPermitId
+            ? {
+                ...p,
+                status: newStatus,
+                approvalRecords: [...(p.approvalRecords || []), newRecord],
+              }
+            : p
+        )
+      )
+
+      if (selectedPermit?.id === approvalPermitId) {
+        setSelectedPermit((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: newStatus,
+                approvalRecords: [...(prev.approvalRecords || []), newRecord],
+              }
+            : null
+        )
+      }
+
+      message.success(successMessage)
+      setApprovalVisible(false)
+    })
+  }
+
   const handleApprove = (id: string) => {
-    setPermits((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, status: 'approved' as const } : p))
-    )
-    if (selectedPermit?.id === id) {
-      setSelectedPermit((prev) => (prev ? { ...prev, status: 'approved' as const } : null))
-    }
-    message.success('已批准作业许可')
+    openApprovalModal(id, 'approve')
   }
 
   const handleReject = (id: string) => {
-    setPermits((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, status: 'rejected' as const } : p))
-    )
-    if (selectedPermit?.id === id) {
-      setSelectedPermit((prev) => (prev ? { ...prev, status: 'rejected' as const } : null))
-    }
-    message.info('已驳回作业许可')
+    openApprovalModal(id, 'reject')
+  }
+
+  const handleComplete = (id: string) => {
+    openApprovalModal(id, 'complete')
   }
 
   const columns: ColumnsType<WorkPermit> = [
@@ -194,6 +254,16 @@ const WorkPermits = () => {
               </Button>
             </>
           )}
+          {record.status === 'approved' && (
+            <Button
+              type="link"
+              size="small"
+              icon={<CheckCircleOutlined />}
+              onClick={() => handleComplete(record.id)}
+            >
+              作业完成
+            </Button>
+          )}
         </Space>
       ),
     },
@@ -222,6 +292,7 @@ const WorkPermits = () => {
         safetyMeasures: (values.safetyMeasures || []).map(
           (m: string) => safetyMeasureLabels[m] || m
         ),
+        approvalRecords: [],
       }
       setPermits((prev) => [newPermit, ...prev])
       message.success('作业许可申请已提交')
@@ -263,10 +334,8 @@ const WorkPermits = () => {
         <Col span={6}>
           <Card size="small">
             <Statistic
-              title="今日作业"
-              value={permits.filter((p) =>
-                dayjs(p.startTime).isSame(dayjs(), 'day')
-              ).length}
+              title="已完成"
+              value={permits.filter((p) => p.status === 'completed').length}
               valueStyle={{ color: '#1890ff' }}
             />
           </Card>
@@ -455,8 +524,94 @@ const WorkPermits = () => {
                 </Tag>
               ))}
             </div>
+            {selectedPermit.approvalRecords && selectedPermit.approvalRecords.length > 0 && (
+              <div style={{ marginTop: 20 }}>
+                <p><strong>审批记录：</strong></p>
+                <Timeline
+                  items={selectedPermit.approvalRecords.map((record) => ({
+                    color:
+                      record.action === 'approve'
+                        ? 'green'
+                        : record.action === 'reject'
+                        ? 'red'
+                        : 'blue',
+                    children: (
+                      <div>
+                        <p style={{ margin: 0, fontWeight: 500 }}>
+                          {record.action === 'approve'
+                            ? '批准'
+                            : record.action === 'reject'
+                            ? '驳回'
+                            : '作业完成'}
+                          <span style={{ color: '#999', marginLeft: 8, fontWeight: 'normal' }}>
+                            {record.time}
+                          </span>
+                        </p>
+                        <p style={{ margin: '4px 0 0 0', color: '#666' }}>
+                          审批人：{record.operator}
+                        </p>
+                        {record.opinion && (
+                          <p style={{ margin: '4px 0 0 0', color: '#666' }}>
+                            意见：{record.opinion}
+                          </p>
+                        )}
+                      </div>
+                    ),
+                  }))}
+                />
+              </div>
+            )}
           </div>
         )}
+      </Modal>
+
+      <Modal
+        title={
+          approvalType === 'approve'
+            ? '批准作业许可'
+            : approvalType === 'reject'
+            ? '驳回作业许可'
+            : '确认作业完成'
+        }
+        open={approvalVisible}
+        onOk={handleApprovalSubmit}
+        onCancel={() => setApprovalVisible(false)}
+        okText={
+          approvalType === 'approve'
+            ? '确认批准'
+            : approvalType === 'reject'
+            ? '确认驳回'
+            : '确认完成'
+        }
+        okButtonProps={{
+          danger: approvalType === 'reject',
+          type: approvalType === 'reject' ? 'primary' : 'primary',
+        }}
+      >
+        <Form form={approvalForm} layout="vertical">
+          <Form.Item
+            name="opinion"
+            label={
+              approvalType === 'complete' ? '完成情况说明' : '审批意见'
+            }
+            rules={
+              approvalType === 'reject'
+                ? [{ required: true, message: '请填写驳回理由' }]
+                : []
+            }
+          >
+            <TextArea
+              rows={4}
+              placeholder={
+                approvalType === 'approve'
+                  ? '请输入审批意见（选填）'
+                  : approvalType === 'reject'
+                  ? '请输入驳回理由（必填）'
+                  : '请输入作业完成情况说明（选填）'
+              }
+            />
+          </Form.Item>
+        </Form>
       </Modal>
     </div>
   )

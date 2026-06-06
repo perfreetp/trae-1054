@@ -39,6 +39,13 @@ export interface RiskPoint {
   description: string
 }
 
+export interface ApprovalRecord {
+  time: string
+  operator: string
+  action: 'approve' | 'reject' | 'complete'
+  opinion: string
+}
+
 export interface WorkPermit {
   id: string
   type: 'hot' | 'height' | 'confined' | 'electric'
@@ -50,6 +57,7 @@ export interface WorkPermit {
   status: 'pending' | 'approved' | 'rejected' | 'completed'
   description: string
   safetyMeasures: string[]
+  approvalRecords: ApprovalRecord[]
 }
 
 export interface PatrolRoute {
@@ -60,18 +68,46 @@ export interface PatrolRoute {
   responsible: string
 }
 
+export interface PatrolCheckResult {
+  cameraId: string
+  status: 'normal' | 'abnormal'
+  remark: string
+}
+
+export interface PatrolRecord {
+  id: string
+  routeId: string
+  routeName: string
+  startTime: string
+  endTime: string
+  operator: string
+  results: PatrolCheckResult[]
+}
+
+export interface RectificationRecord {
+  time: string
+  operator: string
+  action: 'assign' | 'submit' | 'verify' | 'reject'
+  description: string
+  photos?: string[]
+}
+
 export interface HiddenDanger {
   id: string
   title: string
   location: string
   type: string
   level: 'critical' | 'major' | 'general'
-  status: 'pending' | 'rectifying' | 'verified' | 'closed'
+  status: 'pending' | 'rectifying' | 'submitted' | 'verified' | 'closed'
   reporter: string
   reportTime: string
   deadline: string
   rectifier: string
   description: string
+  rectificationRequirement: string
+  rectificationFeedback: string
+  rejectReason: string
+  records: RectificationRecord[]
 }
 
 export interface EnvData {
@@ -91,7 +127,9 @@ export interface SewageRecord {
   type: 'sewage' | 'oil'
   level: 'normal' | 'abnormal' | 'critical'
   description: string
+  status: 'pending' | 'processing' | 'processed'
   handler: string
+  processResult: string
 }
 
 export interface Camera {
@@ -115,6 +153,8 @@ export interface EmergencyEvent {
   planId: string
   handlers: string[]
   processLog: ProcessLog[]
+  resolution: string
+  closeNote: string
 }
 
 export interface ProcessLog {
@@ -122,6 +162,7 @@ export interface ProcessLog {
   operator: string
   action: string
   description: string
+  type?: 'report' | 'start_plan' | 'handling' | 'resolve' | 'close'
 }
 
 export interface EmergencyPlan {

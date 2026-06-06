@@ -29,7 +29,7 @@ import {
   CloseCircleOutlined,
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
-import { emergencyEvents as initialEvents, emergencyPlans } from '../mock/data'
+import { emergencyPlans } from '../mock/data'
 import type { EmergencyEvent, EmergencyPlan, ProcessLog } from '../types'
 import dayjs from 'dayjs'
 
@@ -37,8 +37,12 @@ const { Option } = Select
 const { TextArea } = Input
 const { Step } = Steps
 
-const EventHandling = () => {
-  const [events, setEvents] = useState<EmergencyEvent[]>([...initialEvents])
+interface EventHandlingProps {
+  events: EmergencyEvent[]
+  setEvents: React.Dispatch<React.SetStateAction<EmergencyEvent[]>>
+}
+
+const EventHandling = ({ events, setEvents }: EventHandlingProps) => {
   const [selectedLevel, setSelectedLevel] = useState<string>('all')
   const [selectedStatus, setSelectedStatus] = useState<string>('all')
   const [reportVisible, setReportVisible] = useState(false)
@@ -46,8 +50,12 @@ const EventHandling = () => {
   const [planVisible, setPlanVisible] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState<EmergencyEvent | null>(null)
   const [addLogVisible, setAddLogVisible] = useState(false)
+  const [resolveVisible, setResolveVisible] = useState(false)
+  const [closeVisible, setCloseVisible] = useState(false)
   const [form] = Form.useForm()
   const [logForm] = Form.useForm()
+  const [resolveForm] = Form.useForm()
+  const [closeForm] = Form.useForm()
 
   const levelColorMap: Record<string, string> = {
     level1: 'red',
@@ -84,6 +92,14 @@ const EventHandling = () => {
     closed: 3,
   }
 
+  const timelineColorMap: Record<string, string> = {
+    report: 'red',
+    start_plan: 'orange',
+    handling: 'blue',
+    resolve: 'green',
+    close: 'gray',
+  }
+
   const filteredEvents = events.filter((item) => {
     const matchLevel = selectedLevel === 'all' || item.level === selectedLevel
     const matchStatus = selectedStatus === 'all' || item.status === selectedStatus
@@ -110,8 +126,11 @@ const EventHandling = () => {
             operator: '当前用户',
             action: '事件上报',
             description: values.description,
+            type: 'report',
           },
         ],
+        resolution: '',
+        closeNote: '',
       }
       setEvents((prev) => [newEvent, ...prev])
       message.success('事件已上报')
@@ -127,6 +146,7 @@ const EventHandling = () => {
       operator: '值班主任',
       action: '启动预案',
       description: `启动${plan.name}，已通知：${plan.positions.join('、')}`,
+      type: 'start_plan',
     }
     setEvents((prev) =>
       prev.map((e) =>
@@ -164,6 +184,7 @@ const EventHandling = () => {
         operator: values.operator,
         action: values.action,
         description: values.description,
+        type: 'handling',
       }
       setEvents((prev) =>
         prev.map((e) =>
@@ -178,6 +199,82 @@ const EventHandling = () => {
       message.success('处置记录已保存')
       setAddLogVisible(false)
       logForm.resetFields()
+    })
+  }
+
+  const handleResolve = () => {
+    resolveForm.validateFields().then((values) => {
+      if (!selectedEvent) return
+      const newLog: ProcessLog = {
+        time: dayjs().format('YYYY-MM-DD HH:mm'),
+        operator: '当前用户',
+        action: '事件解决',
+        description: values.resolution,
+        type: 'resolve',
+      }
+      setEvents((prev) =>
+        prev.map((e) =>
+          e.id === selectedEvent.id
+            ? {
+                ...e,
+                status: 'resolved' as const,
+                resolution: values.resolution,
+                processLog: [...e.processLog, newLog],
+              }
+            : e
+        )
+      )
+      setSelectedEvent((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: 'resolved' as const,
+              resolution: values.resolution,
+              processLog: [...prev.processLog, newLog],
+            }
+          : null
+      )
+      message.success('事件已标记为解决')
+      setResolveVisible(false)
+      resolveForm.resetFields()
+    })
+  }
+
+  const handleClose = () => {
+    closeForm.validateFields().then((values) => {
+      if (!selectedEvent) return
+      const newLog: ProcessLog = {
+        time: dayjs().format('YYYY-MM-DD HH:mm'),
+        operator: '当前用户',
+        action: '结案归档',
+        description: values.closeNote,
+        type: 'close',
+      }
+      setEvents((prev) =>
+        prev.map((e) =>
+          e.id === selectedEvent.id
+            ? {
+                ...e,
+                status: 'closed' as const,
+                closeNote: values.closeNote,
+                processLog: [...e.processLog, newLog],
+              }
+            : e
+        )
+      )
+      setSelectedEvent((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: 'closed' as const,
+              closeNote: values.closeNote,
+              processLog: [...prev.processLog, newLog],
+            }
+          : null
+      )
+      message.success('事件已结案')
+      setCloseVisible(false)
+      closeForm.resetFields()
     })
   }
 
@@ -237,7 +334,7 @@ const EventHandling = () => {
     {
       title: '操作',
       key: 'action',
-      width: 200,
+      width: 280,
       render: (_, record) => (
         <Space size="small">
           <Button
@@ -264,21 +361,51 @@ const EventHandling = () => {
             </Button>
           )}
           {record.status === 'handling' && (
+            <>
+              <Button
+                type="link"
+                size="small"
+                onClick={() => {
+                  setSelectedEvent(record)
+                  setAddLogVisible(true)
+                }}
+              >
+                记录处置
+              </Button>
+              <Button
+                type="link"
+                size="small"
+                icon={<CheckCircleOutlined />}
+                onClick={() => {
+                  setSelectedEvent(record)
+                  setResolveVisible(true)
+                }}
+              >
+                标记解决
+              </Button>
+            </>
+          )}
+          {record.status === 'resolved' && (
             <Button
               type="link"
               size="small"
+              icon={<CloseCircleOutlined />}
               onClick={() => {
                 setSelectedEvent(record)
-                setAddLogVisible(true)
+                setCloseVisible(true)
               }}
             >
-              记录处置
+              结案
             </Button>
           )}
         </Space>
       ),
     },
   ]
+
+  const sortedProcessLog = (logs: ProcessLog[]) => {
+    return [...logs].sort((a, b) => dayjs(a.time).valueOf() - dayjs(b.time).valueOf())
+  }
 
   return (
     <div>
@@ -559,14 +686,24 @@ const EventHandling = () => {
               <Descriptions.Item label="事件描述" span={2}>
                 {selectedEvent.description}
               </Descriptions.Item>
+              {selectedEvent.resolution && (
+                <Descriptions.Item label="处置结果" span={2}>
+                  {selectedEvent.resolution}
+                </Descriptions.Item>
+              )}
+              {selectedEvent.closeNote && (
+                <Descriptions.Item label="结案说明" span={2}>
+                  {selectedEvent.closeNote}
+                </Descriptions.Item>
+              )}
             </Descriptions>
 
             <Card title="处置过程记录" size="small">
               <Timeline>
-                {selectedEvent.processLog.map((log, index) => (
+                {sortedProcessLog(selectedEvent.processLog).map((log, index) => (
                   <Timeline.Item
                     key={index}
-                    color={index === selectedEvent.processLog.length - 1 ? 'blue' : 'gray'}
+                    color={log.type ? timelineColorMap[log.type] : 'gray'}
                   >
                     <p style={{ margin: 0 }}>
                       <strong>{log.action}</strong> - {log.operator}
@@ -645,7 +782,6 @@ const EventHandling = () => {
               <Option value="医疗救护">医疗救护</Option>
               <Option value="泄漏控制">泄漏控制</Option>
               <Option value="现场清理">现场清理</Option>
-              <Option value="事件解决">事件解决</Option>
             </Select>
           </Form.Item>
           <Form.Item
@@ -661,6 +797,56 @@ const EventHandling = () => {
             rules={[{ required: true, message: '请输入详情' }]}
           >
             <TextArea rows={4} placeholder="请详细描述处置过程和结果" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="标记事件解决"
+        open={resolveVisible}
+        onOk={handleResolve}
+        onCancel={() => {
+          setResolveVisible(false)
+          resolveForm.resetFields()
+        }}
+        width={600}
+        okText="确认解决"
+      >
+        <Form form={resolveForm} layout="vertical">
+          <Form.Item
+            name="resolution"
+            label="处置结果"
+            rules={[{ required: true, message: '请填写处置结果' }]}
+          >
+            <TextArea
+              rows={4}
+              placeholder="请详细描述事件处置结果、伤亡情况、财产损失情况等"
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="结案归档"
+        open={closeVisible}
+        onOk={handleClose}
+        onCancel={() => {
+          setCloseVisible(false)
+          closeForm.resetFields()
+        }}
+        width={600}
+        okText="确认结案"
+      >
+        <Form form={closeForm} layout="vertical">
+          <Form.Item
+            name="closeNote"
+            label="结案说明"
+            rules={[{ required: true, message: '请填写结案说明' }]}
+          >
+            <TextArea
+              rows={4}
+              placeholder="请填写结案说明、经验教训、改进措施等"
+            />
           </Form.Item>
         </Form>
       </Modal>

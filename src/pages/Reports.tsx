@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import {
   Card,
   Row,
@@ -7,33 +7,85 @@ import {
   Select,
   Button,
   Space,
-  Table,
   Tag,
   List,
   Progress,
   Descriptions,
+  Modal,
 } from 'antd'
 import {
   FileSearchOutlined,
   ExclamationCircleOutlined,
   FileTextOutlined,
   VideoCameraOutlined,
-  EnvironmentOutlined,
   DownloadOutlined,
-  PrinterOutlined,
 } from '@ant-design/icons'
 import ReactECharts from 'echarts-for-react'
-import { safetyReports, hiddenDangers } from '../mock/data'
-import type { SafetyReport } from '../types'
+import type { WorkPermit, HiddenDanger, EmergencyEvent, SewageRecord, PatrolRecord } from '../types'
 
 const { Option } = Select
 
-const Reports = () => {
+interface ReportsProps {
+  workPermits: WorkPermit[]
+  dangers: HiddenDanger[]
+  events: EmergencyEvent[]
+  envRecords: SewageRecord[]
+  patrolRecords: PatrolRecord[]
+}
+
+const Reports = ({ workPermits, dangers, events, envRecords, patrolRecords }: ReportsProps) => {
   const [selectedMonth, setSelectedMonth] = useState('2024-01')
+  const [previewVisible, setPreviewVisible] = useState(false)
 
-  const currentReport = safetyReports.find((r) => r.month === selectedMonth) || safetyReports[0]
+  const currentMonthData = useMemo(() => {
+    const monthPermits = workPermits
+    const monthDangers = dangers
+    const monthEvents = events
+    const monthEnv = envRecords.filter((r) => r.level !== 'normal')
+    const monthPatrols = patrolRecords
 
-  const months = safetyReports.map((r) => r.month)
+    const dangerTypeMap = new Map<string, number>()
+    monthDangers.forEach((d) => {
+      dangerTypeMap.set(d.type, (dangerTypeMap.get(d.type) || 0) + 1)
+    })
+    const dangerTypes = Array.from(dangerTypeMap.entries()).map(([type, count]) => ({ type, count }))
+
+    return {
+      month: selectedMonth,
+      totalEvents: monthEvents.length,
+      resolvedEvents: monthEvents.filter((e) => e.status === 'resolved' || e.status === 'closed').length,
+      totalDangers: monthDangers.length,
+      closedDangers: monthDangers.filter((d) => d.status === 'closed').length,
+      dangerTypes,
+      workPermits: monthPermits.length,
+      patrolCount: monthPatrols.length,
+      envAbnormalities: monthEnv.length,
+    }
+  }, [selectedMonth, workPermits, dangers, events, envRecords, patrolRecords])
+
+  const unresolvedDangers = dangers.filter(
+    (d) => d.status === 'pending' || d.status === 'rectifying' || d.status === 'submitted'
+  )
+
+  const levelColorMap: Record<string, string> = {
+    critical: 'red',
+    major: 'orange',
+    general: 'blue',
+  }
+
+  const levelTextMap: Record<string, string> = {
+    critical: '重大',
+    major: '较大',
+    general: '一般',
+  }
+
+  const statusTextMap: Record<string, string> = {
+    pending: '待整改',
+    rectifying: '整改中',
+    submitted: '待验收',
+    verified: '已验收',
+    closed: '已关闭',
+  }
 
   const dangerTypePieOption = {
     tooltip: { trigger: 'item' },
@@ -50,13 +102,15 @@ const Reports = () => {
           label: { show: true, fontSize: 16, fontWeight: 'bold' },
         },
         labelLine: { show: false },
-        data: currentReport.dangerTypes.map((dt) => ({
+        data: currentMonthData.dangerTypes.map((dt) => ({
           value: dt.count,
           name: dt.type,
         })),
       },
     ],
   }
+
+  const months = ['2024-01', '2023-12']
 
   const trendOption = {
     tooltip: { trigger: 'axis' },
@@ -71,48 +125,66 @@ const Reports = () => {
       {
         name: '隐患总数',
         type: 'line',
-        data: safetyReports.map((r) => r.totalDangers),
+        data: [currentMonthData.totalDangers, 52],
         itemStyle: { color: '#ff4d4f' },
         smooth: true,
       },
       {
         name: '已关闭隐患',
         type: 'line',
-        data: safetyReports.map((r) => r.closedDangers),
+        data: [currentMonthData.closedDangers, 48],
         itemStyle: { color: '#52c41a' },
         smooth: true,
       },
       {
         name: '突发事件',
         type: 'line',
-        data: safetyReports.map((r) => r.totalEvents),
+        data: [currentMonthData.totalEvents, 8],
         itemStyle: { color: '#faad14' },
         smooth: true,
       },
       {
         name: '作业许可',
         type: 'line',
-        data: safetyReports.map((r) => r.workPermits),
+        data: [currentMonthData.workPermits, 63],
         itemStyle: { color: '#1890ff' },
         smooth: true,
       },
     ],
   }
 
-  const unresolvedDangers = hiddenDangers.filter(
-    (d) => d.status === 'pending' || d.status === 'rectifying'
-  )
+  const generateReportContent = () => {
+    return `
+${selectedMonth} 安全环保月报
+================================
+编制部门：安全管理室
+编制时间：${new Date().toLocaleDateString()}
 
-  const levelColorMap: Record<string, string> = {
-    critical: 'red',
-    major: 'orange',
-    general: 'blue',
-  }
+一、关键指标
+--------------------------------
+突发事件：共 ${currentMonthData.totalEvents} 起，已解决 ${currentMonthData.resolvedEvents} 起，解决率 ${currentMonthData.totalEvents > 0 ? Math.round((currentMonthData.resolvedEvents / currentMonthData.totalEvents) * 100) : 0}%
+隐患排查：共排查 ${currentMonthData.totalDangers} 项，已闭环 ${currentMonthData.closedDangers} 项，闭环率 ${currentMonthData.totalDangers > 0 ? Math.round((currentMonthData.closedDangers / currentMonthData.totalDangers) * 100) : 0}%
+作业许可：共审批 ${currentMonthData.workPermits} 份
+巡查工作：共开展巡查 ${currentMonthData.patrolCount} 次
+环境异常：记录环境异常 ${currentMonthData.envAbnormalities} 起
 
-  const levelTextMap: Record<string, string> = {
-    critical: '重大',
-    major: '较大',
-    general: '一般',
+二、隐患类型统计
+--------------------------------
+${currentMonthData.dangerTypes.map((dt) => `  ${dt.type}: ${dt.count}项`).join('\n')}
+
+三、未闭环事项
+--------------------------------
+${unresolvedDangers.length > 0 
+  ? unresolvedDangers.map((d, i) => `  ${i + 1}. [${levelTextMap[d.level]}] ${d.title} - 地点：${d.location} - 状态：${statusTextMap[d.status]} - 责任人：${d.rectifier}`).join('\n')
+  : '  暂无未闭环事项'}
+
+四、下月重点工作
+--------------------------------
+1. 持续推进未闭环隐患整改工作
+2. 加强重点区域安全巡查频次
+3. 组织开展安全培训和应急演练
+4. 完善环境监测设备维护计划
+    `
   }
 
   return (
@@ -129,8 +201,7 @@ const Reports = () => {
           </Select>
         </Space>
         <Space>
-          <Button icon={<PrinterOutlined />}>打印</Button>
-          <Button icon={<DownloadOutlined />} type="primary">
+          <Button icon={<DownloadOutlined />} type="primary" onClick={() => setPreviewVisible(true)}>
             导出报告
           </Button>
         </Space>
@@ -141,12 +212,12 @@ const Reports = () => {
           <Card size="small">
             <Statistic
               title="突发事件"
-              value={currentReport.totalEvents}
+              value={currentMonthData.totalEvents}
               prefix={<ExclamationCircleOutlined style={{ color: '#faad14' }} />}
-              suffix={`/ 解决 ${currentReport.resolvedEvents}`}
+              suffix={`/ 解决 ${currentMonthData.resolvedEvents}`}
             />
             <Progress
-              percent={Math.round((currentReport.resolvedEvents / currentReport.totalEvents) * 100)}
+              percent={currentMonthData.totalEvents > 0 ? Math.round((currentMonthData.resolvedEvents / currentMonthData.totalEvents) * 100) : 0}
               size="small"
               style={{ marginTop: 8 }}
             />
@@ -156,12 +227,12 @@ const Reports = () => {
           <Card size="small">
             <Statistic
               title="隐患总数"
-              value={currentReport.totalDangers}
+              value={currentMonthData.totalDangers}
               prefix={<FileSearchOutlined style={{ color: '#ff4d4f' }} />}
-              suffix={`/ 关闭 ${currentReport.closedDangers}`}
+              suffix={`/ 关闭 ${currentMonthData.closedDangers}`}
             />
             <Progress
-              percent={Math.round((currentReport.closedDangers / currentReport.totalDangers) * 100)}
+              percent={currentMonthData.totalDangers > 0 ? Math.round((currentMonthData.closedDangers / currentMonthData.totalDangers) * 100) : 0}
               size="small"
               status="active"
               style={{ marginTop: 8 }}
@@ -172,7 +243,7 @@ const Reports = () => {
           <Card size="small">
             <Statistic
               title="作业许可"
-              value={currentReport.workPermits}
+              value={currentMonthData.workPermits}
               prefix={<FileTextOutlined style={{ color: '#1890ff' }} />}
             />
           </Card>
@@ -181,7 +252,7 @@ const Reports = () => {
           <Card size="small">
             <Statistic
               title="巡查次数"
-              value={currentReport.patrolCount}
+              value={currentMonthData.patrolCount}
               prefix={<VideoCameraOutlined style={{ color: '#722ed1' }} />}
             />
           </Card>
@@ -225,8 +296,8 @@ const Reports = () => {
                       </span>
                     }
                   />
-                  <Tag color={item.status === 'pending' ? 'warning' : 'processing'}>
-                    {item.status === 'pending' ? '待整改' : '整改中'}
+                  <Tag color={item.status === 'pending' ? 'warning' : item.status === 'submitted' ? 'processing' : 'blue'}>
+                    {statusTextMap[item.status]}
                   </Tag>
                 </List.Item>
               )}
@@ -239,24 +310,24 @@ const Reports = () => {
               <Descriptions.Item label="报告月份">{selectedMonth}</Descriptions.Item>
               <Descriptions.Item label="编制部门">安全管理室</Descriptions.Item>
               <Descriptions.Item label="突发事件">
-                共 {currentReport.totalEvents} 起，已解决 {currentReport.resolvedEvents} 起，解决率{' '}
-                {Math.round((currentReport.resolvedEvents / currentReport.totalEvents) * 100)}%
+                共 {currentMonthData.totalEvents} 起，已解决 {currentMonthData.resolvedEvents} 起，解决率{' '}
+                {currentMonthData.totalEvents > 0 ? Math.round((currentMonthData.resolvedEvents / currentMonthData.totalEvents) * 100) : 0}%
               </Descriptions.Item>
               <Descriptions.Item label="隐患排查">
-                共排查 {currentReport.totalDangers} 项，已闭环 {currentReport.closedDangers} 项，闭环率{' '}
-                {Math.round((currentReport.closedDangers / currentReport.totalDangers) * 100)}%
+                共排查 {currentMonthData.totalDangers} 项，已闭环 {currentMonthData.closedDangers} 项，闭环率{' '}
+                {currentMonthData.totalDangers > 0 ? Math.round((currentMonthData.closedDangers / currentMonthData.totalDangers) * 100) : 0}%
               </Descriptions.Item>
               <Descriptions.Item label="作业许可">
-                共审批 {currentReport.workPermits} 份
+                共审批 {currentMonthData.workPermits} 份
               </Descriptions.Item>
               <Descriptions.Item label="巡查工作">
-                共开展巡查 {currentReport.patrolCount} 次
+                共开展巡查 {currentMonthData.patrolCount} 次
               </Descriptions.Item>
               <Descriptions.Item label="环境异常">
-                记录环境异常 {currentReport.envAbnormalities} 起，均已处置
+                记录环境异常 {currentMonthData.envAbnormalities} 起
               </Descriptions.Item>
               <Descriptions.Item label="隐患类型统计">
-                {currentReport.dangerTypes.map((dt, index) => (
+                {currentMonthData.dangerTypes.map((dt, index) => (
                   <Tag key={index} style={{ margin: 2 }}>
                     {dt.type}: {dt.count}项
                   </Tag>
@@ -274,6 +345,34 @@ const Reports = () => {
           </Card>
         </Col>
       </Row>
+
+      <Modal
+        title="报告预览"
+        open={previewVisible}
+        onCancel={() => setPreviewVisible(false)}
+        footer={[
+          <Button key="close" onClick={() => setPreviewVisible(false)}>
+            关闭
+          </Button>,
+          <Button key="download" type="primary" onClick={() => {
+            const content = generateReportContent()
+            const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `${selectedMonth}-安全环保月报.txt`
+            a.click()
+            URL.revokeObjectURL(url)
+          }}>
+            下载文本文件
+          </Button>,
+        ]}
+        width={700}
+      >
+        <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.8, background: '#f5f5f5', padding: 16, borderRadius: 4 }}>
+          {generateReportContent()}
+        </pre>
+      </Modal>
     </div>
   )
 }

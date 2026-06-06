@@ -15,6 +15,8 @@ import {
   List,
   message,
   DatePicker,
+  Upload,
+  Radio,
 } from 'antd'
 import {
   SearchOutlined,
@@ -23,15 +25,19 @@ import {
   ExclamationCircleOutlined,
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
-import { riskPoints, hiddenDangers as initialDangers, patrolRoutes } from '../mock/data'
-import type { RiskPoint, HiddenDanger, PatrolRoute } from '../types'
+import { riskPoints, patrolRoutes } from '../mock/data'
+import type { RiskPoint, HiddenDanger, PatrolRoute, RectificationRecord } from '../types'
 import dayjs from 'dayjs'
 
 const { Option } = Select
 const { TextArea } = Input
 
-const RiskPoints = () => {
-  const [dangers, setDangers] = useState<HiddenDanger[]>([...initialDangers])
+interface RiskPointsProps {
+  dangers: HiddenDanger[]
+  setDangers: React.Dispatch<React.SetStateAction<HiddenDanger[]>>
+}
+
+const RiskPoints = ({ dangers, setDangers }: RiskPointsProps) => {
   const [selectedLevel, setSelectedLevel] = useState<string>('all')
   const [searchText, setSearchText] = useState('')
   const [detailVisible, setDetailVisible] = useState(false)
@@ -39,9 +45,13 @@ const RiskPoints = () => {
   const [tabKey, setTabKey] = useState('risks')
   const [addDangerVisible, setAddDangerVisible] = useState(false)
   const [assignVisible, setAssignVisible] = useState(false)
+  const [submitVisible, setSubmitVisible] = useState(false)
+  const [verifyVisible, setVerifyVisible] = useState(false)
   const [selectedDanger, setSelectedDanger] = useState<HiddenDanger | null>(null)
   const [dangerForm] = Form.useForm()
   const [assignForm] = Form.useForm()
+  const [submitForm] = Form.useForm()
+  const [verifyForm] = Form.useForm()
 
   const levelColorMap: Record<string, string> = {
     high: 'red',
@@ -82,6 +92,7 @@ const RiskPoints = () => {
   const dangerStatusColorMap: Record<string, string> = {
     pending: 'default',
     rectifying: 'processing',
+    submitted: 'warning',
     verified: 'success',
     closed: 'success',
   }
@@ -89,6 +100,7 @@ const RiskPoints = () => {
   const dangerStatusTextMap: Record<string, string> = {
     pending: '待整改',
     rectifying: '整改中',
+    submitted: '待验收',
     verified: '已验收',
     closed: '已关闭',
   }
@@ -102,6 +114,13 @@ const RiskPoints = () => {
       item.responsible.includes(searchText)
     return matchLevel && matchText
   })
+
+  const addRecord = (danger: HiddenDanger, record: RectificationRecord): HiddenDanger => {
+    return {
+      ...danger,
+      records: [...danger.records, record],
+    }
+  }
 
   const handleAddDanger = () => {
     dangerForm.validateFields().then((values) => {
@@ -117,6 +136,10 @@ const RiskPoints = () => {
         deadline: dayjs(values.deadline).format('YYYY-MM-DD'),
         rectifier: values.rectifier,
         description: values.description,
+        rectificationRequirement: '',
+        rectificationFeedback: '',
+        rejectReason: '',
+        records: [],
       }
       setDangers((prev) => [newDanger, ...prev])
       message.success('隐患已登记')
@@ -130,6 +153,7 @@ const RiskPoints = () => {
     assignForm.setFieldsValue({
       rectifier: record.rectifier,
       deadline: dayjs(record.deadline),
+      rectificationRequirement: record.rectificationRequirement,
     })
     setAssignVisible(true)
   }
@@ -137,15 +161,25 @@ const RiskPoints = () => {
   const confirmAssign = () => {
     assignForm.validateFields().then((values) => {
       if (selectedDanger) {
+        const newRecord: RectificationRecord = {
+          time: dayjs().format('YYYY-MM-DD HH:mm'),
+          operator: '安全主管',
+          action: 'assign',
+          description: values.rectificationRequirement || '下发整改任务',
+        }
         setDangers((prev) =>
           prev.map((d) =>
             d.id === selectedDanger.id
-              ? {
-                  ...d,
-                  status: 'rectifying' as const,
-                  rectifier: values.rectifier,
-                  deadline: dayjs(values.deadline).format('YYYY-MM-DD'),
-                }
+              ? addRecord(
+                  {
+                    ...d,
+                    status: 'rectifying' as const,
+                    rectifier: values.rectifier,
+                    deadline: dayjs(values.deadline).format('YYYY-MM-DD'),
+                    rectificationRequirement: values.rectificationRequirement,
+                  },
+                  newRecord
+                )
               : d
           )
         )
@@ -156,11 +190,99 @@ const RiskPoints = () => {
     })
   }
 
-  const handleVerify = (id: string) => {
+  const handleSubmit = (record: HiddenDanger) => {
+    setSelectedDanger(record)
+    submitForm.setFieldsValue({
+      rectificationFeedback: record.rectificationFeedback,
+    })
+    setSubmitVisible(true)
+  }
+
+  const confirmSubmit = () => {
+    submitForm.validateFields().then((values) => {
+      if (selectedDanger) {
+        const newRecord: RectificationRecord = {
+          time: dayjs().format('YYYY-MM-DD HH:mm'),
+          operator: selectedDanger.rectifier,
+          action: 'submit',
+          description: values.rectificationFeedback || '提交整改完成',
+          photos: [],
+        }
+        setDangers((prev) =>
+          prev.map((d) =>
+            d.id === selectedDanger.id
+              ? addRecord(
+                  {
+                    ...d,
+                    status: 'submitted' as const,
+                    rectificationFeedback: values.rectificationFeedback,
+                  },
+                  newRecord
+                )
+              : d
+          )
+        )
+        message.success('整改已提交，等待验收')
+        setSubmitVisible(false)
+        submitForm.resetFields()
+      }
+    })
+  }
+
+  const handleVerify = (record: HiddenDanger) => {
+    setSelectedDanger(record)
+    verifyForm.resetFields()
+    setVerifyVisible(true)
+  }
+
+  const confirmVerify = () => {
+    verifyForm.validateFields().then((values) => {
+      if (selectedDanger) {
+        const isPass = values.verifyResult === 'pass'
+        const newRecord: RectificationRecord = {
+          time: dayjs().format('YYYY-MM-DD HH:mm'),
+          operator: '安全主管',
+          action: isPass ? 'verify' : 'reject',
+          description: isPass ? '验收通过' : values.rejectReason || '验收不通过',
+        }
+        setDangers((prev) =>
+          prev.map((d) =>
+            d.id === selectedDanger.id
+              ? addRecord(
+                  {
+                    ...d,
+                    status: isPass ? ('verified' as const) : ('rectifying' as const),
+                    rejectReason: isPass ? '' : values.rejectReason,
+                  },
+                  newRecord
+                )
+              : d
+          )
+        )
+        message.success(isPass ? '验收通过' : '已退回整改')
+        setVerifyVisible(false)
+        verifyForm.resetFields()
+      }
+    })
+  }
+
+  const handleClose = (id: string) => {
     setDangers((prev) =>
-      prev.map((d) => (d.id === id ? { ...d, status: 'verified' as const } : d))
+      prev.map((d) =>
+        d.id === id
+          ? addRecord(
+              { ...d, status: 'closed' as const },
+              {
+                time: dayjs().format('YYYY-MM-DD HH:mm'),
+                operator: '安全主管',
+                action: 'verify',
+                description: '已关闭',
+              }
+            )
+          : d
+      )
     )
-    message.success('已验收通过')
+    message.success('已关闭')
   }
 
   const riskColumns: ColumnsType<RiskPoint> = [
@@ -286,7 +408,7 @@ const RiskPoints = () => {
     {
       title: '操作',
       key: 'action',
-      width: 150,
+      width: 200,
       render: (_, record) => (
         <Space size="small">
           <Button type="link" size="small">查看</Button>
@@ -296,8 +418,18 @@ const RiskPoints = () => {
             </Button>
           )}
           {record.status === 'rectifying' && (
-            <Button type="link" size="small" onClick={() => handleVerify(record.id)}>
+            <Button type="link" size="small" onClick={() => handleSubmit(record)}>
+              提交整改
+            </Button>
+          )}
+          {record.status === 'submitted' && (
+            <Button type="link" size="small" onClick={() => handleVerify(record)}>
               验收
+            </Button>
+          )}
+          {record.status === 'verified' && (
+            <Button type="link" size="small" onClick={() => handleClose(record.id)}>
+              关闭
             </Button>
           )}
         </Space>
@@ -330,7 +462,7 @@ const RiskPoints = () => {
           <Card size="small">
             <Statistic
               title="待整改隐患"
-              value={dangers.filter((d) => d.status === 'pending' || d.status === 'rectifying').length}
+              value={dangers.filter((d) => d.status === 'pending' || d.status === 'rectifying' || d.status === 'submitted').length}
               valueStyle={{ color: '#faad14' }}
             />
           </Card>
@@ -609,6 +741,82 @@ const RiskPoints = () => {
             rules={[{ required: true, message: '请选择期限' }]}
           >
             <DatePicker style={{ width: '100%' }} placeholder="选择整改截止日期" />
+          </Form.Item>
+          <Form.Item
+            name="rectificationRequirement"
+            label="整改要求"
+            rules={[{ required: true, message: '请输入整改要求' }]}
+          >
+            <TextArea rows={3} placeholder="请详细描述整改要求" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="提交整改"
+        open={submitVisible}
+        onOk={confirmSubmit}
+        onCancel={() => {
+          setSubmitVisible(false)
+          submitForm.resetFields()
+        }}
+        width={500}
+      >
+        <Form form={submitForm} layout="vertical">
+          <Form.Item
+            name="rectificationFeedback"
+            label="整改反馈"
+            rules={[{ required: true, message: '请输入整改反馈' }]}
+          >
+            <TextArea rows={4} placeholder="请详细描述整改完成情况" />
+          </Form.Item>
+          <Form.Item label="整改照片">
+            <Upload listType="picture-card" beforeUpload={() => false}>
+              <div>
+                <PlusOutlined />
+                <div style={{ marginTop: 8 }}>上传照片</div>
+              </div>
+            </Upload>
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="验收隐患"
+        open={verifyVisible}
+        onOk={confirmVerify}
+        onCancel={() => {
+          setVerifyVisible(false)
+          verifyForm.resetFields()
+        }}
+        width={500}
+      >
+        <Form form={verifyForm} layout="vertical">
+          <Form.Item
+            name="verifyResult"
+            label="验收结果"
+            rules={[{ required: true, message: '请选择验收结果' }]}
+          >
+            <Radio.Group>
+              <Radio value="pass">验收通过</Radio>
+              <Radio value="reject">退回整改</Radio>
+            </Radio.Group>
+          </Form.Item>
+          <Form.Item
+            noStyle
+            shouldUpdate={(prevValues, curValues) => prevValues.verifyResult !== curValues.verifyResult}
+          >
+            {({ getFieldValue }) =>
+              getFieldValue('verifyResult') === 'reject' ? (
+                <Form.Item
+                  name="rejectReason"
+                  label="退回原因"
+                  rules={[{ required: true, message: '请输入退回原因' }]}
+                >
+                  <TextArea rows={3} placeholder="请详细说明退回原因" />
+                </Form.Item>
+              ) : null
+            }
           </Form.Item>
         </Form>
       </Modal>

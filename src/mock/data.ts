@@ -5,13 +5,14 @@ import type {
   RiskPoint,
   WorkPermit,
   PatrolRoute,
+  PatrolRecord,
   HiddenDanger,
   EnvData,
   SewageRecord,
   Camera,
   EmergencyEvent,
   EmergencyPlan,
-  SafetyReport
+  SafetyReport,
 } from '../types'
 
 const baseLat = 31.2304
@@ -43,28 +44,173 @@ export const riskPoints: RiskPoint[] = [
   { id: 'r1', name: '1号泊位起重机', location: '码头1区', level: 'high', status: 'normal', lastCheck: '2024-01-15 09:30', responsible: '张工', description: '大型起重设备，定期检查钢丝绳' },
   { id: 'r2', name: '油罐区消防系统', location: '油罐区A', level: 'high', status: 'abnormal', lastCheck: '2024-01-14 14:20', responsible: '李工', description: '消防压力偏低，需要检修' },
   { id: 'r3', name: '化学品仓库通风', location: '仓库B区', level: 'medium', status: 'normal', lastCheck: '2024-01-15 08:00', responsible: '王工', description: '通风系统运行正常' },
-  { id: 'r4', name: '集装箱堆高机', location: '堆场C区', level: 'medium', status: 'maintenance', lastCheck: '2024-01-13 16:45', responsible: '赵工', description: ' scheduled maintenance' },
+  { id: 'r4', name: '集装箱堆高机', location: '堆场C区', level: 'medium', status: 'maintenance', lastCheck: '2024-01-13 16:45', responsible: '赵工', description: 'scheduled maintenance' },
   { id: 'r5', name: '配电房', location: '中心区', level: 'low', status: 'normal', lastCheck: '2024-01-15 10:00', responsible: '钱工', description: '电力供应正常' },
 ]
 
 export const workPermits: WorkPermit[] = [
-  { id: 'wp1', type: 'hot', applicant: '陈工', department: '工程部', location: '油罐区旁维修间', startTime: '2024-01-16 09:00', endTime: '2024-01-16 17:00', status: 'pending', description: '管道焊接维修', safetyMeasures: ['配备灭火器', '清理易燃物', '专人监护'] },
-  { id: 'wp2', type: 'height', applicant: '刘工', department: '操作部', location: '3号门机', startTime: '2024-01-16 08:30', endTime: '2024-01-16 12:00', status: 'approved', description: '更换信号灯', safetyMeasures: ['系安全带', '设置警示区', '天气确认'] },
-  { id: 'wp3', type: 'confined', applicant: '周工', department: '工程部', location: '污水处理池', startTime: '2024-01-15 14:00', endTime: '2024-01-15 18:00', status: 'completed', description: '清理污泥', safetyMeasures: ['气体检测', '通风换气', '双人作业'] },
-  { id: 'wp4', type: 'electric', applicant: '吴工', department: '工程部', location: '2号配电房', startTime: '2024-01-17 09:00', endTime: '2024-01-17 11:30', status: 'rejected', description: '更换变压器', safetyMeasures: ['断电挂牌', '验电接地', '专人监护'] },
+  {
+    id: 'wp1',
+    type: 'hot',
+    applicant: '陈工',
+    department: '工程部',
+    location: '油罐区旁维修间',
+    startTime: '2024-01-16 09:00',
+    endTime: '2024-01-16 17:00',
+    status: 'pending',
+    description: '管道焊接维修',
+    safetyMeasures: ['配备灭火器', '清理易燃物', '专人监护'],
+    approvalRecords: [],
+  },
+  {
+    id: 'wp2',
+    type: 'height',
+    applicant: '刘工',
+    department: '操作部',
+    location: '3号门机',
+    startTime: '2024-01-16 08:30',
+    endTime: '2024-01-16 12:00',
+    status: 'approved',
+    description: '更换信号灯',
+    safetyMeasures: ['系安全带', '设置警示区', '天气确认'],
+    approvalRecords: [
+      { time: '2024-01-15 16:00', operator: '安全主管', action: 'approve', opinion: '安全措施到位，同意作业' },
+    ],
+  },
+  {
+    id: 'wp3',
+    type: 'confined',
+    applicant: '周工',
+    department: '工程部',
+    location: '污水处理池',
+    startTime: '2024-01-15 14:00',
+    endTime: '2024-01-15 18:00',
+    status: 'completed',
+    description: '清理污泥',
+    safetyMeasures: ['气体检测', '通风换气', '双人作业'],
+    approvalRecords: [
+      { time: '2024-01-15 10:00', operator: '安全主管', action: 'approve', opinion: '同意作业' },
+      { time: '2024-01-15 19:00', operator: '现场监护', action: 'complete', opinion: '作业顺利完成，无异常' },
+    ],
+  },
+  {
+    id: 'wp4',
+    type: 'electric',
+    applicant: '吴工',
+    department: '工程部',
+    location: '2号配电房',
+    startTime: '2024-01-17 09:00',
+    endTime: '2024-01-17 11:30',
+    status: 'rejected',
+    description: '更换变压器',
+    safetyMeasures: ['断电挂牌', '验电接地', '专人监护'],
+    approvalRecords: [
+      { time: '2024-01-15 11:00', operator: '安全主管', action: 'reject', opinion: '作业时间与供电计划冲突，请调整时间' },
+    ],
+  },
 ]
 
 export const patrolRoutes: PatrolRoute[] = [
-  { id: 'pr1', name: '日班巡查路线', checkpoints: ['门卫', '办公楼', '油罐区', '码头', '堆场'], frequency: '每日2次', responsible: '安全部' },
-  { id: 'pr2', name: '夜班巡查路线', checkpoints: ['围墙周界', '仓库', '配电房', '消防泵房'], frequency: '每2小时1次', responsible: '安保部' },
-  { id: 'pr3', name: '专项安全巡查', checkpoints: ['化学品仓库', '气瓶间', '危废暂存点'], frequency: '每周1次', responsible: '环保部' },
+  { id: 'pr1', name: '日班巡查路线', checkpoints: ['c1', 'c2', 'c3', 'c6'], frequency: '每日2次', responsible: '安全部' },
+  { id: 'pr2', name: '夜班巡查路线', checkpoints: ['c5', 'c4', 'c8'], frequency: '每2小时1次', responsible: '安保部' },
+  { id: 'pr3', name: '周界巡查', checkpoints: ['c5', 'c1', 'c2'], frequency: '每4小时1次', responsible: '安保部' },
+]
+
+export const patrolRecords: PatrolRecord[] = [
+  {
+    id: 'prec1',
+    routeId: 'pr1',
+    routeName: '日班巡查路线',
+    startTime: '2024-01-15 08:00',
+    endTime: '2024-01-15 08:45',
+    operator: '张三',
+    results: [
+      { cameraId: 'c1', status: 'normal', remark: '正常' },
+      { cameraId: 'c2', status: 'normal', remark: '正常' },
+      { cameraId: 'c3', status: 'normal', remark: '正常' },
+      { cameraId: 'c6', status: 'normal', remark: '正常' },
+    ],
+  },
 ]
 
 export const hiddenDangers: HiddenDanger[] = [
-  { id: 'hd1', title: '消防通道堆物', location: 'B栋办公楼西侧', type: '消防安全', level: 'major', status: 'rectifying', reporter: '张三', reportTime: '2024-01-14 10:30', deadline: '2024-01-18', rectifier: '行政部', description: '消防通道被杂物堵塞' },
-  { id: 'hd2', title: '安全护栏损坏', location: '3号泊位', type: '设施安全', level: 'critical', status: 'pending', reporter: '李四', reportTime: '2024-01-15 08:00', deadline: '2024-01-16', rectifier: '工程部', description: '码头边缘护栏有3米断裂' },
-  { id: 'hd3', title: '应急灯故障', location: '仓库A区', type: '消防安全', level: 'general', status: 'verified', reporter: '王五', reportTime: '2024-01-12 15:20', deadline: '2024-01-15', rectifier: '工程部', description: '3盏应急灯不亮' },
-  { id: 'hd4', title: '电线裸露', location: '堆场控制室', type: '电气安全', level: 'major', status: 'closed', reporter: '赵六', reportTime: '2024-01-10 11:00', deadline: '2024-01-13', rectifier: '动力部', description: '控制柜内电线绝缘层破损' },
+  {
+    id: 'hd1',
+    title: '消防通道堆物',
+    location: 'B栋办公楼西侧',
+    type: '消防安全',
+    level: 'major',
+    status: 'rectifying',
+    reporter: '张三',
+    reportTime: '2024-01-14 10:30',
+    deadline: '2024-01-18',
+    rectifier: '行政部',
+    description: '消防通道被杂物堵塞',
+    rectificationRequirement: '3日内清理完毕，确保通道畅通',
+    rectificationFeedback: '',
+    rejectReason: '',
+    records: [
+      { time: '2024-01-14 11:00', operator: '安全主管', action: 'assign', description: '下发整改，要求3日内完成' },
+    ],
+  },
+  {
+    id: 'hd2',
+    title: '安全护栏损坏',
+    location: '3号泊位',
+    type: '设施安全',
+    level: 'critical',
+    status: 'pending',
+    reporter: '李四',
+    reportTime: '2024-01-15 08:00',
+    deadline: '2024-01-16',
+    rectifier: '工程部',
+    description: '码头边缘护栏有3米断裂',
+    rectificationRequirement: '',
+    rectificationFeedback: '',
+    rejectReason: '',
+    records: [],
+  },
+  {
+    id: 'hd3',
+    title: '应急灯故障',
+    location: '仓库A区',
+    type: '消防安全',
+    level: 'general',
+    status: 'submitted',
+    reporter: '王五',
+    reportTime: '2024-01-12 15:20',
+    deadline: '2024-01-15',
+    rectifier: '工程部',
+    description: '3盏应急灯不亮',
+    rectificationRequirement: '立即更换损坏的应急灯',
+    rectificationFeedback: '已更换3盏新应急灯，测试正常',
+    rejectReason: '',
+    records: [
+      { time: '2024-01-12 16:00', operator: '安全主管', action: 'assign', description: '下发整改' },
+      { time: '2024-01-14 10:00', operator: '工程部', action: 'submit', description: '已完成更换' },
+    ],
+  },
+  {
+    id: 'hd4',
+    title: '电线裸露',
+    location: '堆场控制室',
+    type: '电气安全',
+    level: 'major',
+    status: 'closed',
+    reporter: '赵六',
+    reportTime: '2024-01-10 11:00',
+    deadline: '2024-01-13',
+    rectifier: '动力部',
+    description: '控制柜内电线绝缘层破损',
+    rectificationRequirement: '立即停电整改',
+    rectificationFeedback: '已重新包裹绝缘层并测试',
+    rejectReason: '',
+    records: [
+      { time: '2024-01-10 11:30', operator: '安全主管', action: 'assign', description: '紧急整改' },
+      { time: '2024-01-11 14:00', operator: '动力部', action: 'submit', description: '整改完成' },
+      { time: '2024-01-11 16:00', operator: '安全部', action: 'verify', description: '验收通过' },
+    ],
+  },
 ]
 
 export const generateEnvData = (): EnvData[] => {
@@ -86,10 +232,10 @@ export const generateEnvData = (): EnvData[] => {
 }
 
 export const sewageRecords: SewageRecord[] = [
-  { id: 's1', time: '2024-01-15 14:30', location: '2号排污口', type: 'sewage', level: 'normal', description: '水质检测正常', handler: '环保部' },
-  { id: 's2', time: '2024-01-15 10:15', location: '码头油污水池', type: 'oil', level: 'abnormal', description: '含油量略超标，已加强处理', handler: '环保部' },
-  { id: 's3', time: '2024-01-14 16:45', location: '1号排污口', type: 'sewage', level: 'normal', description: 'COD达标排放', handler: '环保部' },
-  { id: 's4', time: '2024-01-14 09:20', location: '维修区集水池', type: 'oil', level: 'critical', description: '发现油污泄漏，已启动应急预案', handler: '应急办' },
+  { id: 's1', time: '2024-01-15 14:30', location: '2号排污口', type: 'sewage', level: 'normal', description: '水质检测正常', status: 'processed', handler: '环保部', processResult: '达标排放' },
+  { id: 's2', time: '2024-01-15 10:15', location: '码头油污水池', type: 'oil', level: 'abnormal', description: '含油量略超标，已加强处理', status: 'processing', handler: '环保部', processResult: '' },
+  { id: 's3', time: '2024-01-14 16:45', location: '1号排污口', type: 'sewage', level: 'normal', description: 'COD达标排放', status: 'processed', handler: '环保部', processResult: '正常' },
+  { id: 's4', time: '2024-01-14 09:20', location: '维修区集水池', type: 'oil', level: 'critical', description: '发现油污泄漏，已启动应急预案', status: 'pending', handler: '', processResult: '' },
 ]
 
 export const cameras: Camera[] = [
@@ -117,17 +263,19 @@ export const emergencyEvents: EmergencyEvent[] = [
     planId: 'plan1',
     handlers: ['消防队', '安全部', '仓储部'],
     processLog: [
-      { time: '2024-01-15 14:25', operator: '监控室', action: '事件上报', description: '发现烟雾，立即上报' },
-      { time: '2024-01-15 14:27', operator: '值班主任', action: '启动预案', description: '启动二级火灾应急预案' },
-      { time: '2024-01-15 14:30', operator: '消防队', action: '赶赴现场', description: '消防车已出发' },
-    ]
+      { time: '2024-01-15 14:25', operator: '监控室', action: '事件上报', description: '发现烟雾，立即上报', type: 'report' },
+      { time: '2024-01-15 14:27', operator: '值班主任', action: '启动预案', description: '启动二级火灾应急预案', type: 'start_plan' },
+      { time: '2024-01-15 14:30', operator: '消防队', action: '赶赴现场', description: '消防车已出发', type: 'handling' },
+    ],
+    resolution: '',
+    closeNote: '',
   },
   {
     id: 'e2',
     title: '集卡追尾事故',
     type: '交通事故',
     level: 'level3',
-    status: 'resolved',
+    status: 'closed',
     location: '港区大道中段',
     reporter: '路人',
     reportTime: '2024-01-14 09:15',
@@ -135,10 +283,13 @@ export const emergencyEvents: EmergencyEvent[] = [
     planId: 'plan2',
     handlers: ['安全部', '医务室', '操作部'],
     processLog: [
-      { time: '2024-01-14 09:15', operator: '路人', action: '事件上报', description: '电话报警' },
-      { time: '2024-01-14 09:18', operator: '安全部', action: '现场处置', description: '人员已救出，送医检查' },
-      { time: '2024-01-14 10:30', operator: '安全部', action: '事件结案', description: '轻微受伤，无生命危险' },
-    ]
+      { time: '2024-01-14 09:15', operator: '路人', action: '事件上报', description: '电话报警', type: 'report' },
+      { time: '2024-01-14 09:18', operator: '安全部', action: '现场处置', description: '人员已救出，送医检查', type: 'handling' },
+      { time: '2024-01-14 15:00', operator: '安全部', action: '事件解决', description: '人员已出院，事故责任认定完成', type: 'resolve' },
+      { time: '2024-01-14 16:00', operator: '值班主任', action: '结案', description: '轻微受伤，无生命危险，已结案', type: 'close' },
+    ],
+    resolution: '人员轻微受伤，车辆损坏，已赔付',
+    closeNote: '已结案，后续加强驾驶员安全教育',
   },
 ]
 

@@ -18,6 +18,22 @@ import VideoPatrol from './pages/VideoPatrol'
 import EnvMonitor from './pages/EnvMonitor'
 import EventHandling from './pages/EventHandling'
 import Reports from './pages/Reports'
+import {
+  workPermits as initialPermits,
+  hiddenDangers as initialDangers,
+  emergencyEvents as initialEvents,
+  sewageRecords as initialEnvRecords,
+  patrolRoutes as initialRoutes,
+  patrolRecords as initialPatrolRecords,
+} from './mock/data'
+import type {
+  WorkPermit,
+  HiddenDanger,
+  EmergencyEvent,
+  SewageRecord,
+  PatrolRoute,
+  PatrolRecord,
+} from './types'
 
 const { Header, Sider, Content } = Layout
 
@@ -44,22 +60,44 @@ function App() {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken()
 
+  const [workPermits, setWorkPermits] = useState<WorkPermit[]>([...initialPermits])
+  const [dangers, setDangers] = useState<HiddenDanger[]>([...initialDangers])
+  const [events, setEvents] = useState<EmergencyEvent[]>([...initialEvents])
+  const [envRecords, setEnvRecords] = useState<SewageRecord[]>([...initialEnvRecords])
+  const [patrolRoutes, setPatrolRoutes] = useState<PatrolRoute[]>([...initialRoutes])
+  const [patrolRecords, setPatrolRecords] = useState<PatrolRecord[]>([...initialPatrolRecords])
+
   const renderContent = () => {
     switch (selectedKey) {
       case 'map':
         return <PortMap />
       case 'risk':
-        return <RiskPoints />
+        return <RiskPoints dangers={dangers} setDangers={setDangers} />
       case 'permit':
-        return <WorkPermits />
+        return <WorkPermits permits={workPermits} setPermits={setWorkPermits} />
       case 'video':
-        return <VideoPatrol />
+        return (
+          <VideoPatrol
+            routes={patrolRoutes}
+            setRoutes={setPatrolRoutes}
+            patrolRecords={patrolRecords}
+            setPatrolRecords={setPatrolRecords}
+          />
+        )
       case 'env':
-        return <EnvMonitor />
+        return <EnvMonitor records={envRecords} setRecords={setEnvRecords} />
       case 'event':
-        return <EventHandling />
+        return <EventHandling events={events} setEvents={setEvents} />
       case 'report':
-        return <Reports />
+        return (
+          <Reports
+            workPermits={workPermits}
+            dangers={dangers}
+            events={events}
+            envRecords={envRecords}
+            patrolRecords={patrolRecords}
+          />
+        )
       default:
         return <PortMap />
     }
@@ -71,6 +109,7 @@ function App() {
         trigger={null}
         collapsible
         collapsed={collapsed}
+        onCollapse={setCollapsed}
         theme="dark"
         width={220}
       >
