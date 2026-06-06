@@ -1,5 +1,21 @@
 import { useState } from 'react'
-import { Card, Row, Col, Statistic, Tag, List, Checkbox, Space, Button } from 'antd'
+import {
+  Card,
+  Row,
+  Col,
+  Statistic,
+  Tag,
+  List,
+  Checkbox,
+  Space,
+  Button,
+  Modal,
+  Form,
+  Input,
+  Select,
+  InputNumber,
+  message,
+} from 'antd'
 import {
   MapContainer,
   TileLayer,
@@ -14,9 +30,14 @@ import {
   UserOutlined,
   CarOutlined,
   WarningOutlined,
-  DangerOutlined,
+  AlertOutlined,
+  PlusOutlined,
 } from '@ant-design/icons'
-import { dangerZones, persons, vehicles } from '../mock/data'
+import { dangerZones as initialZones, persons, vehicles } from '../mock/data'
+import type { DangerZone } from '../types'
+
+const { Option } = Select
+const { TextArea } = Input
 
 const personIcon = L.divIcon({
   className: 'custom-div-icon',
@@ -33,9 +54,12 @@ const vehicleIcon = L.divIcon({
 })
 
 const PortMap = () => {
+  const [zones, setZones] = useState<DangerZone[]>([...initialZones])
   const [showZones, setShowZones] = useState(true)
   const [showPersons, setShowPersons] = useState(true)
   const [showVehicles, setShowVehicles] = useState(true)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [form] = Form.useForm()
   const center: [number, number] = [31.2304, 121.4737]
 
   const getStatusColor = (status: string) => {
@@ -53,6 +77,24 @@ const PortMap = () => {
     }
   }
 
+  const handleAddZone = () => {
+    form.validateFields().then((values) => {
+      const newZone: DangerZone = {
+        id: `z${Date.now()}`,
+        name: values.name,
+        type: values.type,
+        description: values.description,
+        lat: values.lat,
+        lng: values.lng,
+        radius: values.radius,
+      }
+      setZones((prev) => [...prev, newZone])
+      message.success('区域已添加')
+      setModalOpen(false)
+      form.resetFields()
+    })
+  }
+
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
@@ -60,8 +102,8 @@ const PortMap = () => {
           <Card size="small">
             <Statistic
               title="危险区域"
-              value={dangerZones.length}
-              prefix={<DangerOutlined style={{ color: '#ff4d4f' }} />}
+              value={zones.length}
+              prefix={<AlertOutlined style={{ color: '#ff4d4f' }} />}
               valueStyle={{ color: '#ff4d4f' }}
             />
           </Card>
@@ -119,6 +161,14 @@ const PortMap = () => {
               <Checkbox checked={showVehicles} onChange={(e) => setShowVehicles(e.target.checked)}>
                 车辆
               </Checkbox>
+              <Button
+                type="primary"
+                size="small"
+                icon={<PlusOutlined />}
+                onClick={() => setModalOpen(true)}
+              >
+                新增区域
+              </Button>
             </Space>
           }
         >
@@ -133,7 +183,7 @@ const PortMap = () => {
             />
 
             {showZones &&
-              dangerZones.map((zone) => (
+              zones.map((zone) => (
                 <Circle
                   key={zone.id}
                   center={[zone.lat, zone.lng]}
@@ -170,7 +220,12 @@ const PortMap = () => {
                       <br />
                       职位: {person.role}
                       <br />
-                      状态: {person.status === 'online' ? '在线' : person.status === 'warning' ? '异常' : '离线'}
+                      状态:{' '}
+                      {person.status === 'online'
+                        ? '在线'
+                        : person.status === 'warning'
+                        ? '异常'
+                        : '离线'}
                     </div>
                   </Popup>
                 </Marker>
@@ -191,7 +246,12 @@ const PortMap = () => {
                       <br />
                       司机: {vehicle.driver}
                       <br />
-                      状态: {vehicle.status === 'running' ? '行驶中' : vehicle.status === 'stopped' ? '已停止' : '维修中'}
+                      状态:{' '}
+                      {vehicle.status === 'running'
+                        ? '行驶中'
+                        : vehicle.status === 'stopped'
+                        ? '已停止'
+                        : '维修中'}
                     </div>
                   </Popup>
                 </Marker>
@@ -205,9 +265,19 @@ const PortMap = () => {
             size="small"
             style={{ flex: 1 }}
             bodyStyle={{ padding: 0 }}
+            extra={
+              <Button
+                type="link"
+                size="small"
+                icon={<PlusOutlined />}
+                onClick={() => setModalOpen(true)}
+              >
+                新增
+              </Button>
+            }
           >
             <List
-              dataSource={dangerZones}
+              dataSource={zones}
               renderItem={(item) => (
                 <List.Item style={{ padding: '12px 16px' }}>
                   <List.Item.Meta
@@ -232,7 +302,10 @@ const PortMap = () => {
             <div>
               <div style={{ marginBottom: 8, fontWeight: 500 }}>人员 ({persons.length})</div>
               {persons.slice(0, 3).map((p) => (
-                <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
+                <div
+                  key={p.id}
+                  style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}
+                >
                   <span>{p.name}</span>
                   <Tag color={getStatusColor(p.status)}>
                     {p.status === 'online' ? '在线' : p.status === 'warning' ? '异常' : '离线'}
@@ -241,7 +314,10 @@ const PortMap = () => {
               ))}
               <div style={{ marginTop: 12, fontWeight: 500 }}>车辆 ({vehicles.length})</div>
               {vehicles.slice(0, 3).map((v) => (
-                <div key={v.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
+                <div
+                  key={v.id}
+                  style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}
+                >
                   <span>{v.plate}</span>
                   <Tag color={getStatusColor(v.status)}>
                     {v.status === 'running' ? '行驶' : v.status === 'stopped' ? '停止' : '维修'}
@@ -252,6 +328,72 @@ const PortMap = () => {
           </Card>
         </div>
       </div>
+
+      <Modal
+        title="新增危险区域/警示区域"
+        open={modalOpen}
+        onCancel={() => {
+          setModalOpen(false)
+          form.resetFields()
+        }}
+        onOk={handleAddZone}
+        okText="提交"
+        cancelText="取消"
+        width={500}
+      >
+        <Form form={form} layout="vertical">
+          <Form.Item
+            name="name"
+            label="区域名称"
+            rules={[{ required: true, message: '请输入区域名称' }]}
+          >
+            <Input placeholder="例如：油罐区A" />
+          </Form.Item>
+          <Form.Item
+            name="type"
+            label="区域类型"
+            rules={[{ required: true, message: '请选择区域类型' }]}
+          >
+            <Select placeholder="选择类型">
+              <Option value="danger">危险区域（高危）</Option>
+              <Option value="warning">警示区域</Option>
+            </Select>
+          </Form.Item>
+          <Form.Item name="description" label="说明">
+            <TextArea rows={2} placeholder="区域说明或注意事项" />
+          </Form.Item>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="lat"
+                label="纬度"
+                rules={[{ required: true, message: '请输入纬度' }]}
+                initialValue={31.2304}
+              >
+                <InputNumber step={0.0001} style={{ width: '100%' }} placeholder="例如：31.2304" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="lng"
+                label="经度"
+                rules={[{ required: true, message: '请输入经度' }]}
+                initialValue={121.4737}
+              >
+                <InputNumber step={0.0001} style={{ width: '100%' }} placeholder="例如：121.4737" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item
+            name="radius"
+            label="半径（米）"
+            rules={[{ required: true, message: '请输入半径' }]}
+            initialValue={80}
+          >
+            <InputNumber min={10} step={10} style={{ width: '100%' }} placeholder="例如：80" />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   )
 }

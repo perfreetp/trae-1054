@@ -13,7 +13,6 @@ import {
   Modal,
   Form,
   DatePicker,
-  InputNumber,
   Checkbox,
   message,
   Descriptions,
@@ -27,7 +26,7 @@ import {
   FileTextOutlined,
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
-import { workPermits } from '../mock/data'
+import { workPermits as initialPermits } from '../mock/data'
 import type { WorkPermit } from '../types'
 import dayjs from 'dayjs'
 
@@ -36,6 +35,7 @@ const { TextArea } = Input
 const { RangePicker } = DatePicker
 
 const WorkPermits = () => {
+  const [permits, setPermits] = useState<WorkPermit[]>([...initialPermits])
   const [selectedType, setSelectedType] = useState<string>('all')
   const [selectedStatus, setSelectedStatus] = useState<string>('all')
   const [searchText, setSearchText] = useState('')
@@ -72,7 +72,7 @@ const WorkPermits = () => {
     completed: '已完成',
   }
 
-  const filteredPermits = workPermits.filter((item) => {
+  const filteredPermits = permits.filter((item) => {
     const matchType = selectedType === 'all' || item.type === selectedType
     const matchStatus = selectedStatus === 'all' || item.status === selectedStatus
     const matchText =
@@ -82,6 +82,26 @@ const WorkPermits = () => {
       item.department.includes(searchText)
     return matchType && matchStatus && matchText
   })
+
+  const handleApprove = (id: string) => {
+    setPermits((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, status: 'approved' as const } : p))
+    )
+    if (selectedPermit?.id === id) {
+      setSelectedPermit((prev) => (prev ? { ...prev, status: 'approved' as const } : null))
+    }
+    message.success('已批准作业许可')
+  }
+
+  const handleReject = (id: string) => {
+    setPermits((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, status: 'rejected' as const } : p))
+    )
+    if (selectedPermit?.id === id) {
+      setSelectedPermit((prev) => (prev ? { ...prev, status: 'rejected' as const } : null))
+    }
+    message.info('已驳回作业许可')
+  }
 
   const columns: ColumnsType<WorkPermit> = [
     {
@@ -159,7 +179,7 @@ const WorkPermits = () => {
                 type="link"
                 size="small"
                 icon={<CheckOutlined />}
-                onClick={() => message.success('已批准作业许可')}
+                onClick={() => handleApprove(record.id)}
               >
                 批准
               </Button>
@@ -168,7 +188,7 @@ const WorkPermits = () => {
                 size="small"
                 danger
                 icon={<CloseOutlined />}
-                onClick={() => message.info('已驳回作业许可')}
+                onClick={() => handleReject(record.id)}
               >
                 驳回
               </Button>
@@ -181,7 +201,29 @@ const WorkPermits = () => {
 
   const handleAdd = () => {
     form.validateFields().then((values) => {
-      console.log('Values:', values)
+      const safetyMeasureLabels: Record<string, string> = {
+        fire: '配备消防器材',
+        guard: '专人现场监护',
+        harness: '佩戴安全带/防护装备',
+        gas: '气体检测合格',
+        power: '切断电源/挂牌上锁',
+        warning: '设置警示区域',
+      }
+      const newPermit: WorkPermit = {
+        id: `wp${Date.now()}`,
+        type: values.type,
+        applicant: values.applicant,
+        department: values.department,
+        location: values.location,
+        startTime: dayjs(values.timeRange[0]).format('YYYY-MM-DD HH:mm'),
+        endTime: dayjs(values.timeRange[1]).format('YYYY-MM-DD HH:mm'),
+        status: 'pending',
+        description: values.description,
+        safetyMeasures: (values.safetyMeasures || []).map(
+          (m: string) => safetyMeasureLabels[m] || m
+        ),
+      }
+      setPermits((prev) => [newPermit, ...prev])
       message.success('作业许可申请已提交')
       setAddVisible(false)
       form.resetFields()
@@ -195,7 +237,7 @@ const WorkPermits = () => {
           <Card size="small">
             <Statistic
               title="作业许可总数"
-              value={workPermits.length}
+              value={permits.length}
               prefix={<FileTextOutlined style={{ color: '#1890ff' }} />}
             />
           </Card>
@@ -204,7 +246,7 @@ const WorkPermits = () => {
           <Card size="small">
             <Statistic
               title="待审核"
-              value={workPermits.filter((p) => p.status === 'pending').length}
+              value={permits.filter((p) => p.status === 'pending').length}
               valueStyle={{ color: '#faad14' }}
             />
           </Card>
@@ -213,7 +255,7 @@ const WorkPermits = () => {
           <Card size="small">
             <Statistic
               title="进行中"
-              value={workPermits.filter((p) => p.status === 'approved').length}
+              value={permits.filter((p) => p.status === 'approved').length}
               valueStyle={{ color: '#52c41a' }}
             />
           </Card>
@@ -222,7 +264,9 @@ const WorkPermits = () => {
           <Card size="small">
             <Statistic
               title="今日作业"
-              value={2}
+              value={permits.filter((p) =>
+                dayjs(p.startTime).isSame(dayjs(), 'day')
+              ).length}
               valueStyle={{ color: '#1890ff' }}
             />
           </Card>
@@ -353,7 +397,6 @@ const WorkPermits = () => {
           <Form.Item
             name="safetyMeasures"
             label="安全措施"
-            valuePropName="checked"
           >
             <Checkbox.Group>
               <Space direction="vertical">

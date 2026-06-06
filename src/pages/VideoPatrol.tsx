@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import {
   Card,
   Row,
@@ -11,7 +11,6 @@ import {
   Select,
   Input,
   Badge,
-  message,
   Modal,
 } from 'antd'
 import {
@@ -23,40 +22,52 @@ import {
   ExclamationCircleOutlined,
 } from '@ant-design/icons'
 import type { DataNode } from 'antd/es/tree'
-import { cameras } from '../mock/data'
+import { cameras as initialCameras } from '../mock/data'
 import type { Camera } from '../types'
 
 const { Option } = Select
 
 const VideoPatrol = () => {
+  const [cameras] = useState<Camera[]>([...initialCameras])
   const [selectedCameras, setSelectedCameras] = useState<string[]>(['c1', 'c2', 'c3', 'c6'])
   const [searchText, setSearchText] = useState('')
   const [layout, setLayout] = useState('4')
   const [fullscreenCamera, setFullscreenCamera] = useState<string | null>(null)
 
-  const cameraGroups = Array.from(new Set(cameras.map((c) => c.group)))
+  const filteredCameras = useMemo(() => {
+    return cameras.filter(
+      (c) =>
+        !searchText ||
+        c.name.toLowerCase().includes(searchText.toLowerCase()) ||
+        c.location.toLowerCase().includes(searchText.toLowerCase())
+    )
+  }, [cameras, searchText])
 
-  const treeData: DataNode[] = cameraGroups.map((group) => ({
-    title: group,
-    key: group,
-    children: cameras
-      .filter((c) => c.group === group)
-      .map((camera) => ({
-        title: (
-          <span>
-            {camera.name}
-            {camera.status === 'offline' && (
-              <Tag color="default" style={{ marginLeft: 8 }} size="small">离线</Tag>
-            )}
-          </span>
-        ),
-        key: camera.id,
-      })),
-  }))
+  const filteredGroups = useMemo(() => {
+    return Array.from(new Set(filteredCameras.map((c) => c.group)))
+  }, [filteredCameras])
 
-  const filteredCameras = cameras.filter(
-    (c) => !searchText || c.name.includes(searchText) || c.location.includes(searchText)
-  )
+  const treeData: DataNode[] = useMemo(() => {
+    return filteredGroups.map((group) => ({
+      title: group,
+      key: group,
+      children: filteredCameras
+        .filter((c) => c.group === group)
+        .map((camera) => ({
+          title: (
+            <span>
+              {camera.name}
+              {camera.status === 'offline' && (
+                <Tag color="default" style={{ marginLeft: 8 }}>
+                  离线
+                </Tag>
+              )}
+            </span>
+          ),
+          key: camera.id,
+        })),
+    }))
+  }, [filteredCameras, filteredGroups])
 
   const getCameraGrid = () => {
     const displayCameras = cameras.filter((c) => selectedCameras.includes(c.id))
@@ -64,7 +75,7 @@ const VideoPatrol = () => {
     const cols = count === 1 ? 1 : count === 4 ? 2 : count === 9 ? 3 : 4
     const rows = count === 1 ? 1 : count === 4 ? 2 : count === 9 ? 3 : 4
 
-    return displayCameras.slice(0, count).map((camera, index) => (
+    return displayCameras.slice(0, count).map((camera) => (
       <Col span={24 / cols} key={camera.id} style={{ padding: 4 }}>
         <Card
           size="small"
@@ -154,7 +165,9 @@ const VideoPatrol = () => {
                   <Option value="9">9画面</Option>
                   <Option value="16">16画面</Option>
                 </Select>
-                <Button size="small" icon={<PlusOutlined />}>添加巡点</Button>
+                <Button size="small" icon={<PlusOutlined />}>
+                  添加巡点
+                </Button>
               </Space>
             }
           >
@@ -170,14 +183,15 @@ const VideoPatrol = () => {
             style={{ height: '100%' }}
             extra={
               <Tag color="success">
-                在线 {cameras.filter((c) => c.status === 'online').length}/{cameras.length}
+                在线 {cameras.filter((c) => c.status === 'online').length}/
+                {cameras.length}
               </Tag>
             }
           >
             <div style={{ padding: '8px 12px', borderBottom: '1px solid #f0f0f0' }}>
               <Input
                 size="small"
-                placeholder="搜索摄像头"
+                placeholder="搜索摄像头名称或位置"
                 prefix={<SearchOutlined />}
                 value={searchText}
                 onChange={(e) => setSearchText(e.target.value)}
@@ -190,7 +204,7 @@ const VideoPatrol = () => {
               treeData={treeData}
               onSelect={(keys) => {
                 const selectedKeys = keys.filter(
-                  (k) => !cameraGroups.includes(k as string)
+                  (k) => !filteredGroups.includes(k as string)
                 ) as string[]
                 setSelectedCameras(selectedKeys)
               }}

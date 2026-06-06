@@ -15,7 +15,6 @@ import {
   message,
   Timeline,
   List,
-  Badge,
   Steps,
   Descriptions,
 } from 'antd'
@@ -28,25 +27,24 @@ import {
   ExclamationCircleOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
-  ClockCircleOutlined,
-  UserOutlined,
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
-import { emergencyEvents, emergencyPlans } from '../mock/data'
-import type { EmergencyEvent, EmergencyPlan } from '../types'
+import { emergencyEvents as initialEvents, emergencyPlans } from '../mock/data'
+import type { EmergencyEvent, EmergencyPlan, ProcessLog } from '../types'
+import dayjs from 'dayjs'
 
 const { Option } = Select
 const { TextArea } = Input
 const { Step } = Steps
 
 const EventHandling = () => {
+  const [events, setEvents] = useState<EmergencyEvent[]>([...initialEvents])
   const [selectedLevel, setSelectedLevel] = useState<string>('all')
   const [selectedStatus, setSelectedStatus] = useState<string>('all')
   const [reportVisible, setReportVisible] = useState(false)
   const [detailVisible, setDetailVisible] = useState(false)
   const [planVisible, setPlanVisible] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState<EmergencyEvent | null>(null)
-  const [selectedPlan, setSelectedPlan] = useState<EmergencyPlan | null>(null)
   const [addLogVisible, setAddLogVisible] = useState(false)
   const [form] = Form.useForm()
   const [logForm] = Form.useForm()
@@ -86,11 +84,106 @@ const EventHandling = () => {
     closed: 3,
   }
 
-  const filteredEvents = emergencyEvents.filter((item) => {
+  const filteredEvents = events.filter((item) => {
     const matchLevel = selectedLevel === 'all' || item.level === selectedLevel
     const matchStatus = selectedStatus === 'all' || item.status === selectedStatus
     return matchLevel && matchStatus
   })
+
+  const handleReport = () => {
+    form.validateFields().then((values) => {
+      const newEvent: EmergencyEvent = {
+        id: `e${Date.now()}`,
+        title: values.title,
+        type: values.type,
+        level: values.level,
+        status: 'reported',
+        location: values.location,
+        reporter: '当前用户',
+        reportTime: dayjs().format('YYYY-MM-DD HH:mm'),
+        description: values.description,
+        planId: '',
+        handlers: [],
+        processLog: [
+          {
+            time: dayjs().format('YYYY-MM-DD HH:mm'),
+            operator: '当前用户',
+            action: '事件上报',
+            description: values.description,
+          },
+        ],
+      }
+      setEvents((prev) => [newEvent, ...prev])
+      message.success('事件已上报')
+      setReportVisible(false)
+      form.resetFields()
+    })
+  }
+
+  const handleStartPlan = (plan: EmergencyPlan) => {
+    if (!selectedEvent) return
+    const newLog: ProcessLog = {
+      time: dayjs().format('YYYY-MM-DD HH:mm'),
+      operator: '值班主任',
+      action: '启动预案',
+      description: `启动${plan.name}，已通知：${plan.positions.join('、')}`,
+    }
+    setEvents((prev) =>
+      prev.map((e) =>
+        e.id === selectedEvent.id
+          ? {
+              ...e,
+              status: 'handling' as const,
+              planId: plan.id,
+              handlers: plan.positions,
+              processLog: [...e.processLog, newLog],
+            }
+          : e
+      )
+    )
+    setSelectedEvent((prev) =>
+      prev
+        ? {
+            ...prev,
+            status: 'handling' as const,
+            planId: plan.id,
+            handlers: plan.positions,
+            processLog: [...prev.processLog, newLog],
+          }
+        : null
+    )
+    message.success(`应急预案已启动：${plan.name}，已通知相关岗位`)
+    setPlanVisible(false)
+  }
+
+  const handleAddLog = () => {
+    logForm.validateFields().then((values) => {
+      if (!selectedEvent) return
+      const newLog: ProcessLog = {
+        time: dayjs().format('YYYY-MM-DD HH:mm'),
+        operator: values.operator,
+        action: values.action,
+        description: values.description,
+      }
+      setEvents((prev) =>
+        prev.map((e) =>
+          e.id === selectedEvent.id
+            ? { ...e, processLog: [...e.processLog, newLog] }
+            : e
+        )
+      )
+      setSelectedEvent((prev) =>
+        prev ? { ...prev, processLog: [...prev.processLog, newLog] } : null
+      )
+      message.success('处置记录已保存')
+      setAddLogVisible(false)
+      logForm.resetFields()
+    })
+  }
+
+  const notifyPositions = (positions: string[]) => {
+    message.success(`已通知：${positions.join('、')}`)
+  }
 
   const columns: ColumnsType<EmergencyEvent> = [
     {
@@ -187,31 +280,6 @@ const EventHandling = () => {
     },
   ]
 
-  const handleReport = () => {
-    form.validateFields().then(() => {
-      message.success('事件已上报')
-      setReportVisible(false)
-      form.resetFields()
-    })
-  }
-
-  const handleStartPlan = (planId: string) => {
-    message.success('应急预案已启动，已通知相关岗位')
-    setPlanVisible(false)
-  }
-
-  const handleAddLog = () => {
-    logForm.validateFields().then(() => {
-      message.success('处置记录已保存')
-      setAddLogVisible(false)
-      logForm.resetFields()
-    })
-  }
-
-  const notifyPositions = (positions: string[]) => {
-    message.success(`已通知：${positions.join('、')}`)
-  }
-
   return (
     <div>
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
@@ -219,7 +287,7 @@ const EventHandling = () => {
           <Card size="small">
             <Statistic
               title="突发事件总数"
-              value={emergencyEvents.length}
+              value={events.length}
               prefix={<AlertOutlined style={{ color: '#1890ff' }} />}
             />
           </Card>
@@ -228,7 +296,7 @@ const EventHandling = () => {
           <Card size="small">
             <Statistic
               title="处置中"
-              value={emergencyEvents.filter((e) => e.status === 'handling').length}
+              value={events.filter((e) => e.status === 'handling').length}
               valueStyle={{ color: '#1890ff' }}
             />
           </Card>
@@ -237,7 +305,7 @@ const EventHandling = () => {
           <Card size="small">
             <Statistic
               title="已解决"
-              value={emergencyEvents.filter((e) => e.status === 'resolved' || e.status === 'closed').length}
+              value={events.filter((e) => e.status === 'resolved' || e.status === 'closed').length}
               valueStyle={{ color: '#52c41a' }}
             />
           </Card>
@@ -246,7 +314,7 @@ const EventHandling = () => {
           <Card size="small">
             <Statistic
               title="重大事件"
-              value={emergencyEvents.filter((e) => e.level === 'level1' || e.level === 'level2').length}
+              value={events.filter((e) => e.level === 'level1' || e.level === 'level2').length}
               valueStyle={{ color: '#ff4d4f' }}
             />
           </Card>
@@ -308,11 +376,16 @@ const EventHandling = () => {
               renderItem={(plan) => (
                 <List.Item
                   actions={[
-                    <Button type="link" size="small" onClick={() => {
-                      setSelectedPlan(plan)
-                      setPlanVisible(true)
-                    }}>查看</Button>,
-                    <Button type="link" size="small" onClick={() => notifyPositions(plan.positions)}>通知岗位</Button>,
+                    <Button type="link" size="small" onClick={() => setPlanVisible(true)}>
+                      查看
+                    </Button>,
+                    <Button
+                      type="link"
+                      size="small"
+                      onClick={() => notifyPositions(plan.positions)}
+                    >
+                      通知岗位
+                    </Button>,
                   ]}
                 >
                   <List.Item.Meta
@@ -324,7 +397,8 @@ const EventHandling = () => {
                     }
                     description={
                       <span>
-                        类型：{plan.type} | 级别：{plan.level} | 涉及岗位：{plan.positions.join('、')}
+                        类型：{plan.type} | 级别：{plan.level} | 涉及岗位：
+                        {plan.positions.join('、')}
                       </span>
                     }
                   />
@@ -334,9 +408,22 @@ const EventHandling = () => {
           </Card>
         </Col>
         <Col span={12}>
-          <Card title="快速通知" size="small" extra={<Button type="primary" size="small">发送通知</Button>}>
+          <Card
+            title="快速通知"
+            size="small"
+            extra={<Button type="primary" size="small">发送通知</Button>}
+          >
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {['值班主任', '安全部', '消防队', '医务室', '保卫部', '操作部', '工程部', '环保部'].map((pos) => (
+              {[
+                '值班主任',
+                '安全部',
+                '消防队',
+                '医务室',
+                '保卫部',
+                '操作部',
+                '工程部',
+                '环保部',
+              ].map((pos) => (
                 <Tag
                   key={pos}
                   color="blue"
@@ -421,7 +508,10 @@ const EventHandling = () => {
             label="事件详情"
             rules={[{ required: true, message: '请输入详情' }]}
           >
-            <TextArea rows={4} placeholder="请详细描述事件情况、伤亡情况、已采取措施等" />
+            <TextArea
+              rows={4}
+              placeholder="请详细描述事件情况、伤亡情况、已采取措施等"
+            />
           </Form.Item>
         </Form>
       </Modal>
@@ -462,7 +552,9 @@ const EventHandling = () => {
               <Descriptions.Item label="上报人">{selectedEvent.reporter}</Descriptions.Item>
               <Descriptions.Item label="上报时间">{selectedEvent.reportTime}</Descriptions.Item>
               <Descriptions.Item label="涉及部门" span={2}>
-                {selectedEvent.handlers.join('、')}
+                {selectedEvent.handlers.length > 0
+                  ? selectedEvent.handlers.join('、')
+                  : '待分配'}
               </Descriptions.Item>
               <Descriptions.Item label="事件描述" span={2}>
                 {selectedEvent.description}
@@ -501,7 +593,11 @@ const EventHandling = () => {
           renderItem={(plan) => (
             <List.Item
               actions={[
-                <Button type="primary" size="small" onClick={() => handleStartPlan(plan.id)}>
+                <Button
+                  type="primary"
+                  size="small"
+                  onClick={() => handleStartPlan(plan)}
+                >
                   启动此预案
                 </Button>,
               ]}
@@ -511,8 +607,12 @@ const EventHandling = () => {
                 title={plan.name}
                 description={
                   <div>
-                    <p style={{ margin: '4px 0' }}>类型：{plan.type} | 级别：{plan.level}</p>
-                    <p style={{ margin: '4px 0' }}>涉及岗位：{plan.positions.join('、')}</p>
+                    <p style={{ margin: '4px 0' }}>
+                      类型：{plan.type} | 级别：{plan.level}
+                    </p>
+                    <p style={{ margin: '4px 0' }}>
+                      涉及岗位：{plan.positions.join('、')}
+                    </p>
                     <p style={{ margin: '4px 0', whiteSpace: 'pre-line' }}>{plan.content}</p>
                   </div>
                 }
@@ -545,6 +645,7 @@ const EventHandling = () => {
               <Option value="医疗救护">医疗救护</Option>
               <Option value="泄漏控制">泄漏控制</Option>
               <Option value="现场清理">现场清理</Option>
+              <Option value="事件解决">事件解决</Option>
             </Select>
           </Form.Item>
           <Form.Item

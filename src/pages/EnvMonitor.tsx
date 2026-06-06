@@ -9,29 +9,30 @@ import {
   Button,
   Space,
   Select,
-  DatePicker,
   Modal,
   Form,
+  Input,
   message,
 } from 'antd'
 import {
   EnvironmentOutlined,
   SoundOutlined,
   CloudOutlined,
-  ThunderboltOutlined,
   PlusOutlined,
   ExclamationCircleOutlined,
 } from '@ant-design/icons'
 import ReactECharts from 'echarts-for-react'
-import { generateEnvData, sewageRecords } from '../mock/data'
+import { generateEnvData, sewageRecords as initialRecords } from '../mock/data'
 import type { ColumnsType } from 'antd/es/table'
 import type { EnvData, SewageRecord } from '../types'
+import dayjs from 'dayjs'
 
 const { Option } = Select
-const { RangePicker } = DatePicker
+const { TextArea } = Input
 
 const EnvMonitor = () => {
   const [envData, setEnvData] = useState<EnvData[]>([])
+  const [records, setRecords] = useState<SewageRecord[]>([...initialRecords])
   const [recordType, setRecordType] = useState<string>('all')
   const [addRecordVisible, setAddRecordVisible] = useState(false)
   const [form] = Form.useForm()
@@ -164,7 +165,7 @@ const EnvMonitor = () => {
     oil: '油污',
   }
 
-  const filteredRecords = sewageRecords.filter(
+  const filteredRecords = records.filter(
     (r) => recordType === 'all' || r.type === recordType
   )
 
@@ -200,7 +201,17 @@ const EnvMonitor = () => {
   ]
 
   const handleAddRecord = () => {
-    form.validateFields().then(() => {
+    form.validateFields().then((values) => {
+      const newRecord: SewageRecord = {
+        id: `s${Date.now()}`,
+        time: dayjs().format('YYYY-MM-DD HH:mm'),
+        location: values.location,
+        type: values.type,
+        level: values.level,
+        description: values.description,
+        handler: '环保部',
+      }
+      setRecords((prev) => [newRecord, ...prev])
       message.success('异常记录已登记')
       setAddRecordVisible(false)
       form.resetFields()
@@ -218,11 +229,12 @@ const EnvMonitor = () => {
               suffix="μg/m³"
               prefix={<CloudOutlined style={{ color: '#faad14' }} />}
               valueStyle={{
-                color: getStatusByValue(latestData?.dust || 0, [100, 150]) === 'success'
-                  ? '#52c41a'
-                  : getStatusByValue(latestData?.dust || 0, [100, 150]) === 'warning'
-                  ? '#faad14'
-                  : '#ff4d4f',
+                color:
+                  getStatusByValue(latestData?.dust || 0, [100, 150]) === 'success'
+                    ? '#52c41a'
+                    : getStatusByValue(latestData?.dust || 0, [100, 150]) === 'warning'
+                    ? '#faad14'
+                    : '#ff4d4f',
               }}
             />
           </Card>
@@ -235,11 +247,12 @@ const EnvMonitor = () => {
               suffix="dB(A)"
               prefix={<SoundOutlined style={{ color: '#1890ff' }} />}
               valueStyle={{
-                color: getStatusByValue(latestData?.noise || 0, [70, 85]) === 'success'
-                  ? '#52c41a'
-                  : getStatusByValue(latestData?.noise || 0, [70, 85]) === 'warning'
-                  ? '#faad14'
-                  : '#ff4d4f',
+                color:
+                  getStatusByValue(latestData?.noise || 0, [70, 85]) === 'success'
+                    ? '#52c41a'
+                    : getStatusByValue(latestData?.noise || 0, [70, 85]) === 'warning'
+                    ? '#faad14'
+                    : '#ff4d4f',
               }}
             />
           </Card>
@@ -258,7 +271,7 @@ const EnvMonitor = () => {
           <Card size="small">
             <Statistic
               title="环境异常"
-              value={sewageRecords.filter((r) => r.level !== 'normal').length}
+              value={records.filter((r) => r.level !== 'normal').length}
               prefix={<ExclamationCircleOutlined style={{ color: '#faad14' }} />}
               valueStyle={{ color: '#faad14' }}
             />
@@ -378,10 +391,7 @@ const EnvMonitor = () => {
             label="情况描述"
             rules={[{ required: true, message: '请输入描述' }]}
           >
-            <textarea
-              style={{ width: '100%', minHeight: 80, padding: 8, borderRadius: 4, border: '1px solid #d9d9d9' }}
-              placeholder="请详细描述异常情况"
-            />
+            <TextArea rows={3} placeholder="请详细描述异常情况" />
           </Form.Item>
         </Form>
       </Modal>
