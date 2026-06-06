@@ -23,6 +23,7 @@ import {
   UserOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
+  EyeOutlined,
 } from '@ant-design/icons'
 import ReactECharts from 'echarts-for-react'
 import { generateEnvData } from '../mock/data'
@@ -45,6 +46,7 @@ const EnvMonitor = ({ records, setRecords }: EnvMonitorProps) => {
   const [addRecordVisible, setAddRecordVisible] = useState(false)
   const [assignVisible, setAssignVisible] = useState(false)
   const [processVisible, setProcessVisible] = useState(false)
+  const [detailVisible, setDetailVisible] = useState(false)
   const [currentRecord, setCurrentRecord] = useState<SewageRecord | null>(null)
   const [form] = Form.useForm()
   const [assignForm] = Form.useForm()
@@ -244,6 +246,11 @@ const EnvMonitor = ({ records, setRecords }: EnvMonitorProps) => {
     })
   }
 
+  const handleViewDetail = (record: SewageRecord) => {
+    setCurrentRecord(record)
+    setDetailVisible(true)
+  }
+
   const columns: ColumnsType<SewageRecord> = [
     { title: '记录时间', dataIndex: 'time', key: 'time', width: 160 },
     { title: '监测点位', dataIndex: 'location', key: 'location', width: 150 },
@@ -268,19 +275,31 @@ const EnvMonitor = ({ records, setRecords }: EnvMonitorProps) => {
       width: 100,
       render: (status: string) => <Tag color={statusColorMap[status]}>{statusTextMap[status]}</Tag>,
     },
-    { title: '情况描述', dataIndex: 'description', key: 'description' },
-    { title: '处理人', dataIndex: 'handler', key: 'handler', width: 100 },
+    { title: '情况描述', dataIndex: 'description', key: 'description', ellipsis: true },
+    {
+      title: '处理人',
+      dataIndex: 'handler',
+      key: 'handler',
+      width: 100,
+      render: (handler: string) => (
+        <Space>
+          <UserOutlined style={{ color: '#1890ff' }} />
+          <span>{handler || '-'}</span>
+        </Space>
+      ),
+    },
     {
       title: '处理结果',
       dataIndex: 'processResult',
       key: 'processResult',
       width: 150,
       ellipsis: true,
+      render: (result: string) => result || <span style={{ color: '#999' }}>-</span>,
     },
     {
       title: '操作',
       key: 'action',
-      width: 140,
+      width: 200,
       render: (_, record) => (
         <Space size="small">
           {record.status === 'pending' && (
@@ -296,6 +315,14 @@ const EnvMonitor = ({ records, setRecords }: EnvMonitorProps) => {
           {record.status === 'processed' && (
             <Tag color="green" icon={<CheckCircleOutlined />}>已完成</Tag>
           )}
+          <Button
+            type="link"
+            size="small"
+            icon={<EyeOutlined />}
+            onClick={() => handleViewDetail(record)}
+          >
+            详情
+          </Button>
         </Space>
       ),
     },
@@ -590,6 +617,101 @@ const EnvMonitor = ({ records, setRecords }: EnvMonitorProps) => {
             <TextArea rows={4} placeholder="请详细描述处理结果" />
           </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal
+        title="异常记录详情"
+        open={detailVisible}
+        onCancel={() => {
+          setDetailVisible(false)
+          setCurrentRecord(null)
+        }}
+        footer={[
+          <Button
+            key="close"
+            onClick={() => {
+              setDetailVisible(false)
+              setCurrentRecord(null)
+            }}
+          >
+            关闭
+          </Button>,
+        ]}
+        width={600}
+      >
+        {currentRecord && (
+          <div>
+            <Row gutter={16} style={{ marginBottom: 12 }}>
+              <Col span={12}>
+                <div style={{ color: '#666', marginBottom: 4 }}>记录编号</div>
+                <div style={{ fontSize: 14 }}>{currentRecord.id}</div>
+              </Col>
+              <Col span={12}>
+                <div style={{ color: '#666', marginBottom: 4 }}>记录时间</div>
+                <div style={{ fontSize: 14 }}>{currentRecord.time}</div>
+              </Col>
+            </Row>
+            <Row gutter={16} style={{ marginBottom: 12 }}>
+              <Col span={12}>
+                <div style={{ color: '#666', marginBottom: 4 }}>监测点位</div>
+                <div style={{ fontSize: 14 }}>{currentRecord.location}</div>
+              </Col>
+              <Col span={12}>
+                <div style={{ color: '#666', marginBottom: 4 }}>异常类型</div>
+                <div style={{ fontSize: 14 }}>
+                  <Tag color={typeColorMap[currentRecord.type]}>
+                    {typeTextMap[currentRecord.type]}
+                  </Tag>
+                </div>
+              </Col>
+            </Row>
+            <Row gutter={16} style={{ marginBottom: 12 }}>
+              <Col span={12}>
+                <div style={{ color: '#666', marginBottom: 4 }}>异常等级</div>
+                <div style={{ fontSize: 14 }}>
+                  <Tag color={levelColorMap[currentRecord.level]}>
+                    {levelTextMap[currentRecord.level]}
+                  </Tag>
+                </div>
+              </Col>
+              <Col span={12}>
+                <div style={{ color: '#666', marginBottom: 4 }}>处理状态</div>
+                <div style={{ fontSize: 14 }}>
+                  <Tag color={statusColorMap[currentRecord.status]}>
+                    {statusTextMap[currentRecord.status]}
+                  </Tag>
+                </div>
+              </Col>
+            </Row>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ color: '#666', marginBottom: 4 }}>情况描述</div>
+              <div style={{ fontSize: 14, padding: 12, background: '#f5f5f5', borderRadius: 4 }}>
+                {currentRecord.description}
+              </div>
+            </div>
+            <Row gutter={16} style={{ marginBottom: 12 }}>
+              <Col span={12}>
+                <div style={{ color: '#666', marginBottom: 4 }}>处理人</div>
+                <div style={{ fontSize: 14 }}>
+                  {currentRecord.handler ? (
+                    <Space>
+                      <UserOutlined style={{ color: '#1890ff' }} />
+                      <span>{currentRecord.handler}</span>
+                    </Space>
+                  ) : (
+                    <span style={{ color: '#999' }}>-</span>
+                  )}
+                </div>
+              </Col>
+            </Row>
+            <div>
+              <div style={{ color: '#666', marginBottom: 4 }}>处理结果</div>
+              <div style={{ fontSize: 14, padding: 12, background: '#f5f5f5', borderRadius: 4 }}>
+                {currentRecord.processResult || <span style={{ color: '#999' }}>暂无</span>}
+              </div>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   )

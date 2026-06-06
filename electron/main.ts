@@ -12,16 +12,14 @@ function createWindow() {
     title: '智慧港口安全环保监控系统',
     webPreferences: {
       nodeIntegration: true,
-      contextIsolation: false
+      contextIsolation: false,
     },
-    icon: path.join(__dirname, '../public/icon.png')
   })
 
   if (process.env.VITE_DEV_SERVER_URL) {
     win.loadURL(process.env.VITE_DEV_SERVER_URL)
-    win.webContents.openDevTools()
   } else {
-    win.loadFile(path.join(__dirname, '../index.html'))
+    win.loadFile(path.join(__dirname, '../dist/index.html'))
   }
 
   win.on('closed', () => {

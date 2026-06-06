@@ -8,6 +8,28 @@
     "build": "tsc && vite build && electron-builder",
     "preview": "vite preview"
   },
+  "build": {
+    "appId": "com.smartport.monitor",
+    "productName": "智慧港口安全环保监控系统",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  },
   "dependencies": {
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

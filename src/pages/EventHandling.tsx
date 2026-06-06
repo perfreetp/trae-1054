@@ -95,6 +95,7 @@ const EventHandling = ({ events, setEvents }: EventHandlingProps) => {
   const timelineColorMap: Record<string, string> = {
     report: 'red',
     start_plan: 'orange',
+    notify: 'purple',
     handling: 'blue',
     resolve: 'green',
     close: 'gray',
@@ -141,12 +142,20 @@ const EventHandling = ({ events, setEvents }: EventHandlingProps) => {
 
   const handleStartPlan = (plan: EmergencyPlan) => {
     if (!selectedEvent) return
-    const newLog: ProcessLog = {
-      time: dayjs().format('YYYY-MM-DD HH:mm'),
+    const currentTime = dayjs().format('YYYY-MM-DD HH:mm')
+    const startPlanLog: ProcessLog = {
+      time: currentTime,
       operator: '值班主任',
       action: '启动预案',
-      description: `启动${plan.name}，已通知：${plan.positions.join('、')}`,
+      description: `启动${plan.name}`,
       type: 'start_plan',
+    }
+    const notifyLog: ProcessLog = {
+      time: currentTime,
+      operator: '值班主任',
+      action: '通知岗位',
+      description: `已通知：${plan.positions.join('、')}`,
+      type: 'notify',
     }
     setEvents((prev) =>
       prev.map((e) =>
@@ -156,7 +165,7 @@ const EventHandling = ({ events, setEvents }: EventHandlingProps) => {
               status: 'handling' as const,
               planId: plan.id,
               handlers: plan.positions,
-              processLog: [...e.processLog, newLog],
+              processLog: [...e.processLog, startPlanLog, notifyLog],
             }
           : e
       )
@@ -168,7 +177,7 @@ const EventHandling = ({ events, setEvents }: EventHandlingProps) => {
             status: 'handling' as const,
             planId: plan.id,
             handlers: plan.positions,
-            processLog: [...prev.processLog, newLog],
+            processLog: [...prev.processLog, startPlanLog, notifyLog],
           }
         : null
     )

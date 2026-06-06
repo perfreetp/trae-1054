@@ -67,6 +67,7 @@ const VideoPatrol: React.FC<VideoPatrolProps> = ({
   const [patrolResults, setPatrolResults] = useState<PatrolCheckResult[]>([])
   const [currentRemark, setCurrentRemark] = useState('')
   const [currentStatus, setCurrentStatus] = useState<'normal' | 'abnormal'>('normal')
+  const [patrolStartTime, setPatrolStartTime] = useState<string>('')
 
   const filteredCameras = useMemo(() => {
     return cameras.filter(
@@ -217,6 +218,7 @@ const VideoPatrol: React.FC<VideoPatrolProps> = ({
     setPatrolResults([])
     setCurrentRemark('')
     setCurrentStatus('normal')
+    setPatrolStartTime(new Date().toLocaleString('zh-CN'))
     setPatrolModalVisible(true)
   }
 
@@ -251,20 +253,41 @@ const VideoPatrol: React.FC<VideoPatrolProps> = ({
       setCurrentCheckpointIndex(currentCheckpointIndex + 1)
       setCurrentRemark('')
       setCurrentStatus('normal')
-    } else {
-      const newRecord: PatrolRecord = {
-        id: `prec${Date.now()}`,
-        routeId: route.id,
-        routeName: route.name,
-        startTime: new Date().toLocaleString('zh-CN'),
-        endTime: new Date().toLocaleString('zh-CN'),
-        operator: '当前用户',
-        results: newResults,
-      }
-      setPatrolRecords([newRecord, ...patrolRecords])
-      setPatrolModalVisible(false)
-      message.success('巡查完成，记录已保存')
     }
+  }
+
+  const handleFinishPatrol = () => {
+    const route = getCurrentRoute()
+    if (!route) return
+
+    const currentCamera = getCurrentCamera()
+    if (!currentCamera) return
+
+    const result: PatrolCheckResult = {
+      cameraId: currentCamera.id,
+      status: currentStatus,
+      remark: currentRemark,
+    }
+
+    const newResults = [...patrolResults, result]
+
+    if (newResults.length !== route.checkpoints.length) {
+      message.warning('请完成所有摄像头的检查')
+      return
+    }
+
+    const newRecord: PatrolRecord = {
+      id: `prec${Date.now()}`,
+      routeId: route.id,
+      routeName: route.name,
+      startTime: patrolStartTime,
+      endTime: new Date().toLocaleString('zh-CN'),
+      operator: '当前用户',
+      results: newResults,
+    }
+    setPatrolRecords([newRecord, ...patrolRecords])
+    setPatrolModalVisible(false)
+    message.success('巡查完成，记录已保存')
   }
 
   const routeColumns = [
@@ -356,16 +379,56 @@ const VideoPatrol: React.FC<VideoPatrolProps> = ({
           type="link"
           size="small"
           onClick={() => {
-            const details = record.results
-              .map((r) => {
-                const camera = cameras.find((c) => c.id === r.cameraId)
-                return `${camera?.name || r.cameraId}: ${r.status === 'normal' ? '正常' : '异常'} - ${r.remark || '无备注'}`
-              })
-              .join('\n')
+            const detailColumns = [
+              {
+                title: '摄像头名称',
+                dataIndex: 'name',
+                key: 'name',
+              },
+              {
+                title: '位置',
+                dataIndex: 'location',
+                key: 'location',
+              },
+              {
+                title: '检查结果',
+                key: 'status',
+                render: (_: any, record: any) => (
+                  <Tag color={record.status === 'normal' ? 'green' : 'red'}>
+                    {record.status === 'normal' ? '正常' : '异常'}
+                  </Tag>
+                ),
+              },
+              {
+                title: '备注',
+                dataIndex: 'remark',
+                key: 'remark',
+                render: (text: string) => text || '无备注',
+              },
+            ]
+
+            const detailData = record.results.map((r) => {
+              const camera = cameras.find((c) => c.id === r.cameraId)
+              return {
+                key: r.cameraId,
+                name: camera?.name || r.cameraId,
+                location: camera?.location || '-',
+                status: r.status,
+                remark: r.remark,
+              }
+            })
+
             Modal.info({
               title: '巡查详情',
-              content: <pre style={{ whiteSpace: 'pre-wrap' }}>{details}</pre>,
-              width: 600,
+              content: (
+                <Table
+                  columns={detailColumns}
+                  dataSource={detailData}
+                  pagination={false}
+                  size="small"
+                />
+              ),
+              width: 700,
             })
           }}
         >
@@ -692,23 +755,27 @@ const VideoPatrol: React.FC<VideoPatrolProps> = ({
               </Form.Item>
 
               <Form.Item>
-                <Button
-                  type="primary"
-                  size="large"
-                  block
-                  icon={
-                    currentCheckpointIndex < currentRoute.checkpoints.length - 1 ? (
-                      <RightOutlined />
-                    ) : (
-                      <CheckCircleOutlined />
-                    )
-                  }
-                  onClick={handleNextCheckpoint}
-                >
-                  {currentCheckpointIndex < currentRoute.checkpoints.length - 1
-                    ? '下一个巡查点'
-                    : '完成巡查'}
-                </Button>
+                {currentCheckpointIndex < currentRoute.checkpoints.length - 1 ? (
+                  <Button
+                    type="primary"
+                    size="large"
+                    block
+                    icon={<RightOutlined />}
+                    onClick={handleNextCheckpoint}
+                  >
+                    下一个巡查点
+                  </Button>
+                ) : (
+                  <Button
+                    type="primary"
+                    size="large"
+                    block
+                    icon={<CheckCircleOutlined />}
+                    onClick={handleFinishPatrol}
+                  >
+                    完成巡查
+                  </Button>
+                )}
               </Form.Item>
             </Form>
           </div>

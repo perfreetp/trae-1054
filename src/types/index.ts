@@ -162,7 +162,7 @@ export interface ProcessLog {
   operator: string
   action: string
   description: string
-  type?: 'report' | 'start_plan' | 'handling' | 'resolve' | 'close'
+  type?: 'report' | 'start_plan' | 'notify' | 'handling' | 'resolve' | 'close'
 }
 
 export interface EmergencyPlan {

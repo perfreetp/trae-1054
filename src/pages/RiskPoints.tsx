@@ -17,6 +17,9 @@ import {
   DatePicker,
   Upload,
   Radio,
+  Timeline,
+  Divider,
+  Alert,
 } from 'antd'
 import {
   SearchOutlined,
@@ -47,6 +50,7 @@ const RiskPoints = ({ dangers, setDangers }: RiskPointsProps) => {
   const [assignVisible, setAssignVisible] = useState(false)
   const [submitVisible, setSubmitVisible] = useState(false)
   const [verifyVisible, setVerifyVisible] = useState(false)
+  const [dangerDetailVisible, setDangerDetailVisible] = useState(false)
   const [selectedDanger, setSelectedDanger] = useState<HiddenDanger | null>(null)
   const [dangerForm] = Form.useForm()
   const [assignForm] = Form.useForm()
@@ -411,7 +415,17 @@ const RiskPoints = ({ dangers, setDangers }: RiskPointsProps) => {
       width: 200,
       render: (_, record) => (
         <Space size="small">
-          <Button type="link" size="small">查看</Button>
+          <Button
+            type="link"
+            size="small"
+            icon={<EyeOutlined />}
+            onClick={() => {
+              setSelectedDanger(record)
+              setDangerDetailVisible(true)
+            }}
+          >
+            查看
+          </Button>
           {record.status === 'pending' && (
             <Button type="link" size="small" onClick={() => handleAssign(record)}>
               下发整改
@@ -819,6 +833,145 @@ const RiskPoints = ({ dangers, setDangers }: RiskPointsProps) => {
             }
           </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal
+        title="隐患详情"
+        open={dangerDetailVisible}
+        onCancel={() => setDangerDetailVisible(false)}
+        onOk={() => setDangerDetailVisible(false)}
+        width={700}
+        footer={[
+          <Button key="close" onClick={() => setDangerDetailVisible(false)}>
+            关闭
+          </Button>,
+        ]}
+      >
+        {selectedDanger && (
+          <div>
+            {selectedDanger.rejectReason && (
+              <Alert
+                message="退回原因"
+                description={selectedDanger.rejectReason}
+                type="error"
+                showIcon
+                style={{ marginBottom: 16 }}
+              />
+            )}
+
+            <Divider orientation="left" orientationMargin={0}>
+              登记信息
+            </Divider>
+            <Row gutter={16}>
+              <Col span={12}>
+                <p><strong>标题：</strong>{selectedDanger.title}</p>
+              </Col>
+              <Col span={12}>
+                <p><strong>类型：</strong>{selectedDanger.type}</p>
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col span={12}>
+                <p>
+                  <strong>等级：</strong>
+                  <Tag color={dangerLevelColorMap[selectedDanger.level]}>
+                    {dangerLevelTextMap[selectedDanger.level]}
+                  </Tag>
+                </p>
+              </Col>
+              <Col span={12}>
+                <p>
+                  <strong>状态：</strong>
+                  <Tag color={dangerStatusColorMap[selectedDanger.status]}>
+                    {dangerStatusTextMap[selectedDanger.status]}
+                  </Tag>
+                </p>
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col span={12}>
+                <p><strong>位置：</strong>{selectedDanger.location}</p>
+              </Col>
+              <Col span={12}>
+                <p><strong>整改责任人：</strong>{selectedDanger.rectifier}</p>
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col span={12}>
+                <p><strong>上报人：</strong>{selectedDanger.reporter}</p>
+              </Col>
+              <Col span={12}>
+                <p><strong>上报时间：</strong>{selectedDanger.reportTime}</p>
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col span={24}>
+                <p><strong>整改期限：</strong>{selectedDanger.deadline}</p>
+              </Col>
+            </Row>
+            <p style={{ marginTop: 8 }}>
+              <strong>描述：</strong>
+            </p>
+            <p style={{ background: '#f5f5f5', padding: 12, borderRadius: 4 }}>
+              {selectedDanger.description}
+            </p>
+
+            <Divider orientation="left" orientationMargin={0}>
+              整改要求
+            </Divider>
+            <p style={{ background: '#e6f7ff', padding: 12, borderRadius: 4 }}>
+              {selectedDanger.rectificationRequirement || '暂无整改要求'}
+            </p>
+
+            <Divider orientation="left" orientationMargin={0}>
+              整改反馈
+            </Divider>
+            <p style={{ background: '#f6ffed', padding: 12, borderRadius: 4 }}>
+              {selectedDanger.rectificationFeedback || '暂无整改反馈'}
+            </p>
+
+            <Divider orientation="left" orientationMargin={0}>
+              照片
+            </Divider>
+            <div
+              style={{
+                width: '100%',
+                height: 120,
+                background: '#fafafa',
+                border: '1px dashed #d9d9d9',
+                borderRadius: 4,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#999',
+              }}
+            >
+              暂无照片
+            </div>
+
+            <Divider orientation="left" orientationMargin={0}>
+              状态流转记录
+            </Divider>
+            {selectedDanger.records && selectedDanger.records.length > 0 ? (
+              <Timeline>
+                {selectedDanger.records.map((record, index) => (
+                  <Timeline.Item key={index}>
+                    <p style={{ margin: 0 }}>
+                      <strong>{record.time}</strong> - {record.operator}
+                    </p>
+                    <p style={{ margin: '4px 0 0 0', color: '#666' }}>
+                      {record.description}
+                    </p>
+                  </Timeline.Item>
+                ))}
+              </Timeline>
+            ) : (
+              <p style={{ color: '#999', textAlign: 'center', padding: '12px 0' }}>
+                暂无流转记录
+              </p>
+            )}
+          </div>
+        )}
       </Modal>
     </div>
   )
